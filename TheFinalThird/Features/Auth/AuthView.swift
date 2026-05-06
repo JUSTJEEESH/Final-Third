@@ -10,7 +10,13 @@ struct AuthView: View {
             content
         }
         .onAppear {
-            if vm == nil { vm = AuthViewModel(auth: container.auth) }
+            if vm == nil {
+                vm = AuthViewModel(auth: container.auth) { [weak container] userID in
+                    // After auth completes, ask the container to refresh the
+                    // onboarding gate. The container will route via RootView.
+                    await container?.checkOnboarding(userID: userID)
+                }
+            }
         }
     }
 
@@ -18,9 +24,8 @@ struct AuthView: View {
     private var content: some View {
         if let vm {
             switch vm.step {
-            case .landing:       LandingView(vm: vm)
-            case .email:         EmailView(vm: vm)
-            case .profileSetup:  ProfileSetupView(vm: vm)
+            case .landing: LandingView(vm: vm)
+            case .email:   EmailView(vm: vm)
             }
         }
     }
@@ -55,6 +60,7 @@ private struct LandingView: View {
                     Text(error)
                         .font(FTType.caption(12))
                         .foregroundStyle(FTColor.danger)
+                        .multilineTextAlignment(.center)
                 }
             }
             .padding(.horizontal, FTSpace.xl)
@@ -91,48 +97,15 @@ private struct EmailView: View {
             .frame(maxWidth: .infinity, alignment: .center)
 
             if let error = vm.error {
-                Text(error).font(FTType.caption(12)).foregroundStyle(FTColor.danger)
+                Text(error).font(FTType.caption(12))
+                    .foregroundStyle(FTColor.danger)
+                    .multilineTextAlignment(.center)
             }
 
             Spacer()
         }
         .padding(.horizontal, FTSpace.xl)
         .padding(.top, FTSpace.xxxl)
-    }
-}
-
-private struct ProfileSetupView: View {
-    @Bindable var vm: AuthViewModel
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: FTSpace.lg) {
-                Text("Tell us a little about yourself.")
-                    .font(FTType.display(26)).foregroundStyle(FTColor.gold)
-
-                FTField(title: "Name or handle", text: $vm.displayName)
-                FTField(title: "@handle (optional)", text: $vm.handle)
-                FTField(title: "City (optional)", text: $vm.city)
-
-                Toggle(isOn: $vm.isHondurasLocal) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Honduras local").font(FTType.body(15, weight: .medium))
-                        Text("We'll surface nearby events and locals.")
-                            .font(FTType.caption(12)).foregroundStyle(FTColor.inkMuted)
-                    }
-                }
-                .tint(FTColor.gold)
-
-                FTButton(title: "Take my chair", style: .gold, isLoading: vm.isWorking) {
-                    Task { await vm.saveProfile() }
-                }
-
-                if let error = vm.error {
-                    Text(error).font(FTType.caption(12)).foregroundStyle(FTColor.danger)
-                }
-            }
-            .padding(FTSpace.xl)
-        }
     }
 }
 

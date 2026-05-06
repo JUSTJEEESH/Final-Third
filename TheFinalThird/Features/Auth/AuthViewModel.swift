@@ -4,25 +4,26 @@ import Observation
 @MainActor
 @Observable
 final class AuthViewModel {
-    enum Step: Equatable { case landing, email, profileSetup }
+    enum Step: Equatable { case landing, email }
 
     var step: Step = .landing
     var email: String = ""
     var password: String = ""
-    var displayName: String = ""
-    var handle: String = ""
-    var city: String = ""
-    var isHondurasLocal: Bool = false
     var error: String?
     var isWorking: Bool = false
 
-    private let auth: AuthService
-    private let profiles: ProfileRepository
-    private let appleCoordinator = AppleSignInCoordinator()
+    /// Optional name passed from Apple's identity token through to the
+    /// onboarding flow as a presetDisplayName. Stored on the container so
+    /// OnboardingViewModel can read it; cleared once consumed.
+    var presetDisplayNameFromApple: String?
 
-    init(auth: AuthService, profiles: ProfileRepository = LiveProfileRepository()) {
+    private let auth: AuthService
+    private let appleCoordinator = AppleSignInCoordinator()
+    private let onSignedIn: (UUID) async -> Void
+
+    init(auth: AuthService, onSignedIn: @escaping (UUID) async -> Void = { _ in }) {
         self.auth = auth
-        self.profiles = profiles
+        self.onSignedIn = onSignedIn
     }
 
     func signInWithApple() async {
@@ -31,11 +32,14 @@ final class AuthViewModel {
             let result = try await appleCoordinator.signIn()
             try await auth.signInWithApple(idToken: result.idToken, nonce: result.nonce)
             if let name = result.fullName {
-                displayName = [name.givenName, name.familyName].compactMap { $0 }.joined(separator: " ")
+                presetDisplayNameFromApple = [name.givenName, name.familyName]
+                    .compactMap { $0 }.joined(separator: " ")
             }
-            step = .profileSetup
+            if case .signedIn(let userID) = auth.state {
+                await onSignedIn(userID)
+            }
         } catch {
-            self.error = error.localizedDescription
+            self.error = "Sign in with Apple failed: \(error.localizedDescription)"
         }
     }
 
@@ -50,14 +54,12 @@ final class AuthViewModel {
             switch auth.state {
             case .awaitingEmailConfirmation:
                 error = "Check your email — we sent a verification link."
-            case .signedIn:
-                step = .profileSetup
+            case .signedIn(let userID):
+                await onSignedIn(userID)
             default:
                 error = "Couldn't create your account. Try again."
             }
         } catch {
-            // Surface the underlying message so we can debug rather than
-            // hiding behind generic copy. We can soften this later.
             self.error = "Sign up failed: \(error.localizedDescription)"
         }
     }
@@ -70,45 +72,11 @@ final class AuthViewModel {
         }
         do {
             try await auth.signIn(email: email, password: password)
+            if case .signedIn(let userID) = auth.state {
+                await onSignedIn(userID)
+            }
         } catch {
             self.error = "Sign in failed: \(error.localizedDescription)"
-        }
-    }
-
-    func saveProfile() async {
-        error = nil; isWorking = true; defer { isWorking = false }
-        guard !displayName.trimmingCharacters(in: .whitespaces).isEmpty else {
-            error = "We need something to call you."
-            return
-        }
-        guard case .signedIn(let userID) = auth.state else {
-            error = "Not signed in."
-            return
-        }
-        let profile = Profile(
-            id: userID,
-            email: email.isEmpty ? nil : email,
-            displayName: displayName,
-            handle: handle.isEmpty ? nil : handle,
-            avatarURL: nil,
-            bio: nil,
-            city: city.isEmpty ? nil : city,
-            isHondurasLocal: isHondurasLocal,
-            isPremium: false,
-            audioTheme: nil,
-            voiceEnabled: false,
-            ghostModeDefault: false,
-            notificationPrefs: .default,
-            quietHoursStart: nil,
-            quietHoursEnd: nil,
-            timezone: TimeZone.current.identifier,
-            createdAt: .now
-        )
-        do {
-            try await profiles.upsert(profile)
-            step = .landing
-        } catch {
-            self.error = "Couldn't save your profile. Try again."
         }
     }
 

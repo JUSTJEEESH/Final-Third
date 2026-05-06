@@ -16,7 +16,13 @@ final class AppContainer {
     let offlineQueue: OfflineQueue
     let analytics: AnalyticsService
 
-    init() {
+    /// Routing flag: when signed in but no `profiles` row exists, the user
+    /// has to complete onboarding before reaching the main tab bar.
+    var needsOnboarding: Bool = false
+
+    private let profiles: ProfileRepository
+
+    init(profiles: ProfileRepository = LiveProfileRepository()) {
         self.auth = AuthService()
         self.config = ConfigService()
         self.entitlements = EntitlementService()
@@ -26,6 +32,7 @@ final class AppContainer {
         self.audio = AudioEngine()
         self.offlineQueue = OfflineQueue()
         self.analytics = AnalyticsService()
+        self.profiles = profiles
     }
 
     func bootstrap() async {
@@ -34,6 +41,27 @@ final class AppContainer {
         await config.refreshIfStale()
         if case .signedIn(let userID) = auth.state {
             entitlements.bootstrap(appUserID: userID.uuidString)
+            await checkOnboarding(userID: userID)
         }
+    }
+
+    /// Checks if a `profiles` row exists for the signed-in user. If not, the
+    /// session is "orphaned" (auth user without a profile) and we route to
+    /// onboarding. If the auth.users row was deleted server-side but a stale
+    /// token persists in the keychain, the fetch returns a 401-ish error;
+    /// we treat that as needing onboarding too — completion will fail and
+    /// the user can sign out from there.
+    func checkOnboarding(userID: UUID) async {
+        do {
+            _ = try await profiles.fetch(id: userID)
+            needsOnboarding = false
+        } catch {
+            needsOnboarding = true
+        }
+    }
+
+    /// Called by the onboarding flow when it finishes successfully.
+    func markOnboardingComplete() {
+        needsOnboarding = false
     }
 }

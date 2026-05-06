@@ -11,7 +11,11 @@ struct RootView: View {
         case .signedOut, .awaitingEmailConfirmation:
             AuthView()
         case .signedIn:
-            MainTabView()
+            if container.needsOnboarding {
+                OnboardingView()
+            } else {
+                MainTabView()
+            }
         }
     }
 }
