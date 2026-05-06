@@ -71,6 +71,11 @@ targets:
           - voip
           - fetch
           - remote-notification
+        # Build-time substitution from Config/Base.xcconfig (which #includes Secrets.xcconfig).
+        SUPABASE_URL: $(SUPABASE_URL)
+        SUPABASE_ANON_KEY: $(SUPABASE_ANON_KEY)
+        LIVEKIT_URL: $(LIVEKIT_URL)
+        REVENUECAT_API_KEY_IOS: $(REVENUECAT_API_KEY_IOS)
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.thefinalthird.app
