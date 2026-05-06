@@ -39,19 +39,6 @@ final class AuthViewModel {
         }
     }
 
-    func signInWithEmail() async {
-        error = nil; isWorking = true; defer { isWorking = false }
-        guard isValidEmail(email), password.count >= 8 else {
-            error = "Enter a valid email and a password (8+ characters)."
-            return
-        }
-        do {
-            try await auth.signIn(email: email, password: password)
-        } catch {
-            self.error = "Couldn't sign in. Check your details."
-        }
-    }
-
     func signUpWithEmail() async {
         error = nil; isWorking = true; defer { isWorking = false }
         guard isValidEmail(email), password.count >= 8 else {
@@ -60,9 +47,6 @@ final class AuthViewModel {
         }
         do {
             try await auth.signUp(email: email, password: password)
-            // If Supabase has email confirmation enabled, auth.state moves to
-            // .awaitingEmailConfirmation. Surface that to the user instead of
-            // jumping into profile setup with no session.
             switch auth.state {
             case .awaitingEmailConfirmation:
                 error = "Check your email — we sent a verification link."
@@ -72,7 +56,22 @@ final class AuthViewModel {
                 error = "Couldn't create your account. Try again."
             }
         } catch {
-            self.error = "Couldn't create your account. Try again."
+            // Surface the underlying message so we can debug rather than
+            // hiding behind generic copy. We can soften this later.
+            self.error = "Sign up failed: \(error.localizedDescription)"
+        }
+    }
+
+    func signInWithEmail() async {
+        error = nil; isWorking = true; defer { isWorking = false }
+        guard isValidEmail(email), password.count >= 8 else {
+            error = "Enter a valid email and a password (8+ characters)."
+            return
+        }
+        do {
+            try await auth.signIn(email: email, password: password)
+        } catch {
+            self.error = "Sign in failed: \(error.localizedDescription)"
         }
     }
 
