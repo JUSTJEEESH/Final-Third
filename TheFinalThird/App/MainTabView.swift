@@ -32,8 +32,8 @@ struct MainTabView: View {
         ZStack(alignment: .bottom) {
             switch selection {
             case .home:    HomePlaceholder()
-            case .explore: ExplorePlaceholder()
-            case .lounge:  LoungePlaceholder()
+            case .explore: ExploreView()
+            case .lounge:  LoungeView()
             case .journal: JournalPlaceholder()
             case .profile: ProfilePlaceholder()
             }
@@ -78,14 +78,6 @@ private struct FTTabBar: View {
 
 private struct HomePlaceholder: View {
     var body: some View { CenteredTitle("Home", subtitle: "Tonight's pick lands here.") }
-}
-
-private struct ExplorePlaceholder: View {
-    var body: some View { CenteredTitle("Explore", subtitle: "Cigars and drinks await.") }
-}
-
-private struct LoungePlaceholder: View {
-    var body: some View { CenteredTitle("Lounge", subtitle: "Your room is being prepared.") }
 }
 
 private struct JournalPlaceholder: View {
