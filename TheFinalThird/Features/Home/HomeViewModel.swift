@@ -57,32 +57,31 @@ final class HomeViewModel {
     func load() async {
         isLoading = true; defer { isLoading = false }
         await config.refreshIfStale()
-        await withTaskGroup(of: Void.self) { group in
-            group.addTask { [self] in profile = (try? await profiles.fetch(id: userID)) }
-            group.addTask { [self] in
-                let u = (try? await usuals.fetch(userID: userID))
-                self.usual = u
-                if let cigarID = u?.cigarID {
-                    self.usualCigar = try? await cigars.fetch(id: cigarID)
-                }
-            }
-            group.addTask { [self] in
-                let all = (try? await rooms.list()) ?? []
-                self.activeRooms = Array(all.prefix(4))
-            }
-            group.addTask { [self] in
-                let drop = try? await drops.current()
-                self.currentDrop = drop
-                if let cigarID = drop?.cigarID {
-                    self.dropCigar = try? await cigars.fetch(id: cigarID)
-                }
-            }
-            group.addTask { [self] in
-                let city = (try? await profiles.fetch(id: userID))?.city
-                self.nearbyEvents = (try? await events.upcoming(city: city, limit: 3)) ?? []
-            }
+
+        async let profileTask = profiles.fetch(id: userID)
+        async let usualTask = usuals.fetch(userID: userID)
+        async let roomsTask = rooms.list()
+        async let dropTask = drops.current()
+
+        profile = try? await profileTask
+        let usual = try? await usualTask
+        self.usual = usual
+        if let cigarID = usual?.cigarID {
+            usualCigar = try? await cigars.fetch(id: cigarID)
         }
-        // Tonight's pick: usual cigar, else dropCigar, else first listed.
+
+        let allRooms = (try? await roomsTask) ?? []
+        activeRooms = Array(allRooms.prefix(4))
+
+        let drop = try? await dropTask
+        currentDrop = drop
+        if let cigarID = drop?.cigarID {
+            dropCigar = try? await cigars.fetch(id: cigarID)
+        }
+
+        let city = profile?.city
+        nearbyEvents = (try? await events.upcoming(city: city, limit: 3)) ?? []
+
         tonightsPick = usualCigar ?? dropCigar
     }
 }

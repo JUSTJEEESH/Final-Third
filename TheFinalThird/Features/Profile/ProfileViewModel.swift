@@ -29,12 +29,15 @@ final class ProfileViewModel {
     }
 
     func load() async {
-        await withTaskGroup(of: Void.self) { group in
-            group.addTask { [self] in profile = try? await profiles.fetch(id: userID) }
-            group.addTask { [self] in usual = try? await usuals.fetch(userID: userID) }
-            group.addTask { [self] in connections = (try? await social.connections(userID: userID)) ?? [] }
-            group.addTask { [self] in chemistry = (try? await social.chemistry(userID: userID)) ?? [] }
-        }
+        async let p = profiles.fetch(id: userID)
+        async let u = usuals.fetch(userID: userID)
+        async let c = social.connections(userID: userID)
+        async let ch = social.chemistry(userID: userID)
+
+        profile = try? await p
+        usual = try? await u
+        connections = (try? await c) ?? []
+        chemistry = (try? await ch) ?? []
     }
 
     func updateAudioPref(_ theme: AudioTheme?) async {
