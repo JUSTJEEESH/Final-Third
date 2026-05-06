@@ -12,10 +12,17 @@ final class RoomViewModel {
     var draft = ""
     var error: String?
 
+    // Voice + ambient (M18)
+    var voiceJoined = false
+    var ambientTheme: AudioTheme?
+
     private let rooms: RoomRepository
     private let messagesRepo: MessageRepository
     private let realtime: RealtimeService
+    private let voice: VoiceService
+    private let audio: AudioEngine
     private let analytics: AnalyticsService
+    private let voiceTokenProvider: RoomVoiceTokenProvider
     private var streamTask: Task<Void, Never>?
     private var earliestLoaded: Date?
 
@@ -24,13 +31,19 @@ final class RoomViewModel {
         rooms: RoomRepository = LiveRoomRepository(),
         messages: MessageRepository = LiveMessageRepository(),
         realtime: RealtimeService,
-        analytics: AnalyticsService
+        voice: VoiceService,
+        audio: AudioEngine,
+        analytics: AnalyticsService,
+        voiceTokenProvider: RoomVoiceTokenProvider = RoomVoiceTokenProvider()
     ) {
         self.roomID = roomID
         self.rooms = rooms
         self.messagesRepo = messages
         self.realtime = realtime
+        self.voice = voice
+        self.audio = audio
         self.analytics = analytics
+        self.voiceTokenProvider = voiceTokenProvider
     }
 
     func enter(asGhost: Bool) async {
@@ -43,6 +56,10 @@ final class RoomViewModel {
             earliestLoaded = messages.first?.createdAt
             analytics.track(.roomJoined(roomID: roomID, ghost: asGhost))
             startListening()
+
+            // Ambient mix follows the room's saved theme.
+            ambientTheme = room?.audioTheme
+            audio.setTheme(ambientTheme)
         } catch {
             self.error = error.localizedDescription
         }
@@ -50,8 +67,44 @@ final class RoomViewModel {
 
     func leave() async {
         streamTask?.cancel()
+        await voice.leave()
+        audio.setTheme(nil)
+        voiceJoined = false
         try? await rooms.leave(roomID: roomID)
         analytics.track(.roomLeft(roomID: roomID))
+    }
+
+    // MARK: Voice
+
+    func joinVoice() async {
+        guard !isGhost else { return }       // ghost mode forces silence
+        guard !voiceJoined else { return }
+        do {
+            try await voice.join(
+                roomID: roomID,
+                asSpeaker: true,
+                tokenProvider: { [voiceTokenProvider] roomID in
+                    try await voiceTokenProvider.token(forRoom: roomID)
+                }
+            )
+            voiceJoined = true
+        } catch {
+            self.error = "Voice unavailable: \(error.localizedDescription)"
+        }
+    }
+
+    func setTransmitting(_ on: Bool) async {
+        await voice.setTransmitting(on)
+        // Duck ambient under voice; restore when released.
+        audio.duck(on)
+        if !on {
+            analytics.track(.voiceTransmitted(roomID: roomID, durationMs: 0))
+        }
+    }
+
+    func setAmbient(_ theme: AudioTheme?) {
+        ambientTheme = theme
+        audio.setTheme(theme)
     }
 
     func loadOlder() async {

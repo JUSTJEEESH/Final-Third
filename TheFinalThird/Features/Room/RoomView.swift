@@ -5,6 +5,7 @@ struct RoomView: View {
     @Environment(AppContainer.self) private var container
     @Environment(\.dismiss) private var dismiss
     @State private var vm: RoomViewModel?
+    @State private var showAmbientPicker = false
 
     var body: some View {
         ZStack {
@@ -29,10 +30,19 @@ struct RoomView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 if let vm {
-                    Toggle("Ghost", isOn: Bindable(vm).isGhost)
-                        .toggleStyle(.button)
-                        .tint(FTColor.gold)
-                        .font(FTType.caption(11))
+                    HStack(spacing: FTSpace.sm) {
+                        Button {
+                            HapticsService.shared.tap()
+                            showAmbientPicker = true
+                        } label: {
+                            Image(systemName: "speaker.wave.2.fill")
+                                .foregroundStyle(vm.ambientTheme == nil ? FTColor.inkMuted : FTColor.gold)
+                        }
+                        Toggle("Ghost", isOn: Bindable(vm).isGhost)
+                            .toggleStyle(.button)
+                            .tint(FTColor.gold)
+                            .font(FTType.caption(11))
+                    }
                 }
             }
         }
@@ -41,12 +51,25 @@ struct RoomView: View {
                 vm = RoomViewModel(
                     roomID: roomID,
                     realtime: container.realtime,
+                    voice: container.voice,
+                    audio: container.audio,
                     analytics: container.analytics
                 )
-                // Ghost default will be sourced from profile prefs in M13.
-                await vm?.enter(asGhost: false)
+                let asGhost = await defaultGhost()
+                await vm?.enter(asGhost: asGhost)
             }
         }
+        .sheet(isPresented: $showAmbientPicker) {
+            if let vm { AmbientPickerSheet(vm: vm) }
+        }
+    }
+
+    /// Pulls ghost-by-default off the user's profile; safe to call repeatedly.
+    private func defaultGhost() async -> Bool {
+        guard case .signedIn(let userID) = container.auth.state else { return false }
+        let repo: ProfileRepository = LiveProfileRepository()
+        let profile = try? await repo.fetch(id: userID)
+        return profile?.ghostModeDefault ?? false
     }
 
     private func content(vm: RoomViewModel) -> some View {
@@ -56,6 +79,7 @@ struct RoomView: View {
                 .padding(.vertical, FTSpace.sm)
             Divider().background(FTColor.divider)
             ChatList(messages: vm.messages, onScrollTop: { Task { await vm.loadOlder() } })
+            VoiceBar(vm: vm)
             ComposerBar(text: Bindable(vm).draft) { Task { await vm.send() } }
         }
     }
@@ -142,6 +166,43 @@ private struct MessageRow: View {
     }
 }
 
+private struct VoiceBar: View {
+    @Bindable var vm: RoomViewModel
+
+    var body: some View {
+        HStack(spacing: FTSpace.md) {
+            if vm.voiceJoined {
+                PushToTalkButton(
+                    isTransmitting: false /* read from VoiceService inside VM in v2 */,
+                    isJoined: true,
+                    onPressChange: { on in Task { await vm.setTransmitting(on) } }
+                )
+                Text("Hold to talk")
+                    .font(FTType.caption(11)).foregroundStyle(FTColor.inkMuted)
+            } else {
+                Button {
+                    Task { await vm.joinVoice() }
+                } label: {
+                    HStack(spacing: FTSpace.sm) {
+                        Image(systemName: "mic.slash")
+                        Text(vm.isGhost ? "Voice off in ghost mode" : "Tap to join voice")
+                            .font(FTType.caption(12, weight: .medium))
+                    }
+                    .padding(.horizontal, FTSpace.md).padding(.vertical, FTSpace.sm)
+                    .background(FTColor.surface)
+                    .foregroundStyle(vm.isGhost ? FTColor.inkFaint : FTColor.inkMuted)
+                    .clipShape(Capsule())
+                }
+                .disabled(vm.isGhost)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, FTSpace.lg)
+        .padding(.vertical, FTSpace.sm)
+        .background(FTColor.surfaceLo.opacity(0.5))
+    }
+}
+
 private struct ComposerBar: View {
     @Binding var text: String
     let onSend: () -> Void
@@ -171,5 +232,56 @@ private struct ComposerBar: View {
         .padding(FTSpace.lg)
         .background(FTColor.surfaceLo)
         .overlay(alignment: .top) { GoldDivider().opacity(0.3) }
+    }
+}
+
+private struct AmbientPickerSheet: View {
+    @Bindable var vm: RoomViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Button {
+                        vm.setAmbient(nil)
+                        HapticsService.shared.tap()
+                    } label: {
+                        HStack {
+                            Text("Silence").foregroundStyle(FTColor.ink)
+                            Spacer()
+                            if vm.ambientTheme == nil {
+                                Image(systemName: "checkmark").foregroundStyle(FTColor.gold)
+                            }
+                        }
+                    }
+                }
+                Section("Ambience") {
+                    ForEach(AudioTheme.allCases, id: \.self) { theme in
+                        Button {
+                            vm.setAmbient(theme)
+                            HapticsService.shared.tap()
+                        } label: {
+                            HStack {
+                                Text(theme.displayName).foregroundStyle(FTColor.ink)
+                                Spacer()
+                                if vm.ambientTheme == theme {
+                                    Image(systemName: "checkmark").foregroundStyle(FTColor.gold)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(FTColor.background)
+            .navigationTitle("Ambience")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
     }
 }

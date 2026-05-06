@@ -3,6 +3,8 @@ import SwiftUI
 struct ProfileView: View {
     @Environment(AppContainer.self) private var container
     @State private var vm: ProfileViewModel?
+    @State private var showSettings = false
+    @State private var showUsual = false
 
     var body: some View {
         NavigationStack {
@@ -10,7 +12,19 @@ struct ProfileView: View {
                 FTColor.background.ignoresSafeArea()
                 if let vm { content(vm) } else { ProgressView().tint(FTColor.gold) }
             }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        HapticsService.shared.tap()
+                        showSettings = true
+                    } label: {
+                        Image(systemName: "gearshape").foregroundStyle(FTColor.gold)
+                    }
+                }
+            }
         }
+        .sheet(isPresented: $showSettings) { SettingsView() }
+        .sheet(isPresented: $showUsual) { TheUsualEditor() }
         .task {
             if vm == nil, case .signedIn(let userID) = container.auth.state {
                 vm = ProfileViewModel(userID: userID)
@@ -19,12 +33,15 @@ struct ProfileView: View {
         }
     }
 
+    var openUsual: () -> Void { { showUsual = true } }
+
     @ViewBuilder
     private func content(_ vm: ProfileViewModel) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: FTSpace.lg) {
                 header(vm: vm)
                 statsRow(vm: vm)
+                ritualCard(vm: vm)
                 ChemistrySection(rows: vm.chemistry)
                 ConnectionsSection(connections: vm.connections, currentUserID: vm.profile?.id)
                 preferences(vm: vm)
@@ -33,6 +50,29 @@ struct ProfileView: View {
             .padding(.horizontal, FTSpace.lg)
             .padding(.bottom, 96)
         }
+    }
+
+    private func ritualCard(vm: ProfileViewModel) -> some View {
+        Button {
+            HapticsService.shared.tap()
+            showUsual = true
+        } label: {
+            FTCard(elevated: true) {
+                HStack(spacing: FTSpace.md) {
+                    Image(systemName: "moon.stars.fill")
+                        .foregroundStyle(FTColor.gold)
+                        .font(.system(size: 22))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("The Usual")
+                            .font(FTType.body(15, weight: .semibold))
+                        Text(vm.usual?.enabled == true ? "Reminder set." : "Set your nightly ritual.")
+                            .font(FTType.caption(11)).foregroundStyle(FTColor.inkMuted)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right").foregroundStyle(FTColor.inkFaint)
+                }
+            }
+        }.buttonStyle(.plain)
     }
 
     private func header(vm: ProfileViewModel) -> some View {
