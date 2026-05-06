@@ -1,0 +1,7 @@
+// Base configuration. Imports Secrets.xcconfig (which is .gitignored).
+#include? "Secrets.xcconfig"
+
+IPHONEOS_DEPLOYMENT_TARGET = 17.0
+SWIFT_VERSION = 6.0
+SWIFT_STRICT_CONCURRENCY = complete
+TARGETED_DEVICE_FAMILY = 1

@@ -1,0 +1,43 @@
+# macOS / Xcode
+.DS_Store
+*.xcuserstate
+*.swp
+*.moved-aside
+xcuserdata/
+*.xccheckout
+*.xcscmblueprint
+DerivedData/
+build/
+*.hmap
+*.ipa
+*.xcuserdata/
+*.xcworkspace/xcuserdata/
+
+# Swift / SPM
+.build/
+.swiftpm/
+Package.resolved
+
+# CocoaPods (not used, but guard)
+Pods/
+
+# Generated
+*.xcodeproj
+project.yml.local
+
+# Secrets
+*.env
+*.env.*
+!.env.example
+Secrets.xcconfig
+GoogleService-Info.plist
+
+# IDE
+.idea/
+.vscode/
+
+# Tooling
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output

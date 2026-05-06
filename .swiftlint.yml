@@ -1,0 +1,42 @@
+disabled_rules:
+  - trailing_whitespace
+  - todo
+opt_in_rules:
+  - empty_count
+  - explicit_init
+  - first_where
+  - sorted_imports
+  - unused_import
+  - prefer_self_type_over_type_of_self
+  - redundant_nil_coalescing
+  - implicitly_unwrapped_optional
+  - force_unwrapping
+included:
+  - TheFinalThird
+  - TheFinalThirdTests
+excluded:
+  - .build
+  - DerivedData
+  - .swiftpm
+line_length:
+  warning: 140
+  error: 200
+file_length:
+  warning: 600
+  error: 1000
+type_body_length:
+  warning: 400
+  error: 600
+function_body_length:
+  warning: 60
+  error: 120
+identifier_name:
+  excluded:
+    - id
+    - to
+    - in
+    - on
+force_unwrapping:
+  severity: error
+implicitly_unwrapped_optional:
+  severity: error
