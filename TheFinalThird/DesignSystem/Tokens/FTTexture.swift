@@ -37,24 +37,28 @@ enum FTTexture: Sendable {
 
 /// Renders a texture. Prefers a photographic `UIImage` from
 /// `Assets.xcassets` when one exists; falls back to a procedural Canvas
-/// drawing otherwise. Use `.drawingGroup()` on the caller in tight scroll
-/// contexts to bake the procedural path to a Metal layer.
+/// drawing otherwise.
+///
+/// For photographic assets we pre-scale the source to `tileSize` and
+/// tile it across the parent via `.resizable(resizingMode: .tile)`. This
+/// keeps the natural grain detail visible without stretching, and
+/// guarantees the image is bounded to its parent's frame (no overflow).
 struct TexturePanel: View {
     let texture: FTTexture
     var opacity: Double = 0.12
     var seed: Double = 1.0
 
+    /// Effective tile height, in points. Smaller = denser repeats and
+    /// finer grain detail visible. ~220 looks good across cards and
+    /// tab-bar floors; drop to ~140 if you want the wood grain to read
+    /// even smaller.
+    var tileSize: CGFloat = 220
+
     var body: some View {
         Group {
-            if let asset = UIImage(named: texture.assetName) {
-                // Simple resizable stretch — no aspect-fill, no clipping
-                // games. Aspect-fill in SwiftUI sometimes leaks through
-                // its parent's height proposal, which was making the wood
-                // floor overflow above the tab bar. For organic textures
-                // (wood grain, leather, tobacco fiber, paper) mild
-                // horizontal/vertical stretch is invisible to the eye.
-                Image(uiImage: asset)
-                    .resizable()
+            if let tiled = TexturePanel.tiledImage(named: texture.assetName, tileSize: tileSize) {
+                Image(uiImage: tiled)
+                    .resizable(resizingMode: .tile)
                     .interpolation(.high)
             } else {
                 proceduralCanvas
@@ -63,6 +67,30 @@ struct TexturePanel: View {
         .opacity(opacity)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+
+    /// Cache of pre-scaled tile-resizable images keyed by (assetName, size).
+    /// Prevents re-rendering the source on every body call.
+    private static let cache = NSCache<NSString, UIImage>()
+
+    /// Loads the asset, scales it down to `tileSize` (preserving aspect),
+    /// and returns a tile-ready UIImage. Cached per key.
+    private static func tiledImage(named name: String, tileSize: CGFloat) -> UIImage? {
+        let key = "\(name)@\(Int(tileSize))" as NSString
+        if let cached = cache.object(forKey: key) {
+            return cached
+        }
+        guard let source = UIImage(named: name) else { return nil }
+        let aspect = source.size.width / max(source.size.height, 1)
+        let target = CGSize(width: tileSize * aspect, height: tileSize)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = UIScreen.main.scale
+        let renderer = UIGraphicsImageRenderer(size: target, format: format)
+        let scaled = renderer.image { _ in
+            source.draw(in: CGRect(origin: .zero, size: target))
+        }
+        cache.setObject(scaled, forKey: key)
+        return scaled
     }
 
     private var proceduralCanvas: some View {

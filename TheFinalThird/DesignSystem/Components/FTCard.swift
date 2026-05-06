@@ -4,7 +4,8 @@ struct FTCard<Content: View>: View {
     var padding: CGFloat = FTSpace.lg
     var elevated: Bool = false
     var texture: FTTexture? = .leather
-    var textureIntensity: Double = 0.10
+    var textureIntensity: Double = 0.18
+    var textureTileSize: CGFloat = 220
     @ViewBuilder let content: () -> Content
 
     var body: some View {
@@ -14,7 +15,9 @@ struct FTCard<Content: View>: View {
                 ZStack {
                     (elevated ? FTColor.surfaceHi : FTColor.surface)
                     if let texture {
-                        TexturePanel(texture: texture, opacity: textureIntensity)
+                        TexturePanel(texture: texture,
+                                     opacity: textureIntensity,
+                                     tileSize: textureTileSize)
                     }
                     // Soft top highlight — light catching the leather edge.
                     LinearGradient(

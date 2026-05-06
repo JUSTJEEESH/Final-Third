@@ -40,14 +40,16 @@ struct FTAppBackground: View {
     }
 }
 
-/// Charred-wood "floor" for the tab bar.
+/// Charred-wood "floor" for the tab bar. Texture tiles at a smaller
+/// size here so the wood grain reads as planks rather than a giant
+/// stretched panel.
 struct FTFloorBackground: View {
     var body: some View {
         ZStack {
             FTColor.charredWood
-            TexturePanel(texture: .charredWood, opacity: 0.85)
-            // Lift the top edge a touch so the floor reads as separate from
-            // the room above it.
+            TexturePanel(texture: .charredWood, opacity: 0.85, tileSize: 160)
+            // Lift the top edge a touch so the floor reads as separate
+            // from the room above it.
             LinearGradient(
                 stops: [
                     .init(color: .black.opacity(0.55), location: 0),
