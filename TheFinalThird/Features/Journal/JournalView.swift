@@ -6,9 +6,14 @@ struct JournalView: View {
     @State private var showPaywall = false
 
     var body: some View {
-        ZStack {
-            FTColor.background.ignoresSafeArea()
-            if let vm { content(vm) } else { ProgressView().tint(FTColor.gold) }
+        NavigationStack {
+            ZStack {
+                FTColor.background.ignoresSafeArea()
+                if let vm { content(vm) } else { ProgressView().tint(FTColor.gold) }
+            }
+            .navigationDestination(for: AppRoute.self) { route in
+                if case let .session(id) = route { SessionDetailView(sessionID: id) }
+            }
         }
         .task {
             if vm == nil, case .signedIn(let userID) = container.auth.state {
@@ -40,7 +45,11 @@ struct JournalView: View {
                 } else {
                     LazyVStack(spacing: FTSpace.sm) {
                         ForEach(vm.visibleSessions) { s in
-                            SessionRow(session: s, cigar: s.cigarID.flatMap { vm.cigarsByID[$0] })
+                            NavigationLink(value: AppRoute.session(s.id)) {
+                                SessionRow(session: s,
+                                           cigar: s.cigarID.flatMap { vm.cigarsByID[$0] })
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                 }
@@ -50,7 +59,7 @@ struct JournalView: View {
                 }
             }
             .padding(.horizontal, FTSpace.lg)
-            .padding(.bottom, 96)
+            .padding(.bottom, FTSpace.lg)
         }
     }
 }
@@ -136,6 +145,9 @@ private struct SessionRow: View {
                     .font(FTType.caption(11))
                     .foregroundStyle(FTColor.gold)
                 }
+                Image(systemName: "chevron.right")
+                    .foregroundStyle(FTColor.inkFaint)
+                    .font(.system(size: 12, weight: .semibold))
             }
         }
     }

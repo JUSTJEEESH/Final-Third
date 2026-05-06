@@ -49,7 +49,7 @@ struct LoungeView: View {
             }
             .padding(.horizontal, FTSpace.lg)
             .padding(.top, FTSpace.md)
-            .padding(.bottom, 96)
+            .padding(.bottom, FTSpace.lg)
         }
     }
 

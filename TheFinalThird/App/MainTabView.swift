@@ -1,6 +1,12 @@
 import SwiftUI
 
 /// Custom dark tab bar — Home / Explore / Lounge / Journal / Profile.
+///
+/// Layout uses a VStack (not ZStack-with-bottom-overlay) so the tab bar
+/// is structurally pinned to its content height — it can't expand
+/// vertically into the content area above, which previously caused the
+/// wood-floor texture to leak upward and block touches on cards in
+/// Home, Lounge, and Journal.
 struct MainTabView: View {
     enum Tab: Hashable, CaseIterable {
         case home, explore, lounge, journal, profile
@@ -29,7 +35,7 @@ struct MainTabView: View {
     @State private var selection: Tab = .home
 
     var body: some View {
-        ZStack(alignment: .bottom) {
+        VStack(spacing: 0) {
             Group {
                 switch selection {
                 case .home:    HomeView()
@@ -39,10 +45,11 @@ struct MainTabView: View {
                 case .profile: ProfileView()
                 }
             }
-            .padding(.bottom, 64) // tab bar overlay clearance
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             FTTabBar(selection: $selection)
         }
+        .ignoresSafeArea(edges: .bottom)
     }
 }
 
@@ -65,9 +72,7 @@ private struct FTTabBar: View {
                                 : AnyShapeStyle(FTColor.inkMuted)
                             )
                             .shadow(
-                                color: selection == tab
-                                    ? FTColor.goldGlow
-                                    : .clear,
+                                color: selection == tab ? FTColor.goldGlow : .clear,
                                 radius: 8, x: 0, y: 0
                             )
                         Text(tab.label)
@@ -84,10 +89,22 @@ private struct FTTabBar: View {
         }
         .padding(.horizontal, FTSpace.md)
         .padding(.top, FTSpace.sm)
-        .padding(.bottom, FTSpace.lg)
+        // Bottom inset accounts for the home indicator. Computed from the
+        // safe area we just opted out of at the parent level.
+        .padding(.bottom, bottomSafeAreaInset)
         .background(FTFloorBackground())
         .overlay(alignment: .top) {
             GoldDivider().opacity(0.55)
         }
+    }
+
+    /// Manual safe-area inset since the parent VStack opts out of bottom
+    /// safe area to let the wood floor extend behind the home indicator.
+    private var bottomSafeAreaInset: CGFloat {
+        guard let window = UIApplication.shared.connectedScenes
+            .compactMap({ ($0 as? UIWindowScene)?.keyWindow })
+            .first
+        else { return FTSpace.lg }
+        return max(window.safeAreaInsets.bottom, FTSpace.lg)
     }
 }

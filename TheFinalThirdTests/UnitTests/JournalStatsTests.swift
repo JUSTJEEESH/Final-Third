@@ -56,6 +56,10 @@ struct JournalStatsTests {
 private struct StubSessionRepo: SessionRepository, @unchecked Sendable {
     var sessions: [Session] = []
     func recent(userID: UUID, limit: Int) async throws -> [Session] { sessions }
+    func fetch(id: UUID) async throws -> Session {
+        if let s = sessions.first(where: { $0.id == id }) { return s }
+        throw AppError.notFound(entity: "Session")
+    }
     func start(userID: UUID, roomID: UUID?, cigarID: UUID?, drinkID: UUID?,
                lightingMethod: Session.LightingMethod?, isGhost: Bool) async throws -> Session {
         fatalError("unused in tests")

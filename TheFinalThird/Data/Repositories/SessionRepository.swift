@@ -3,6 +3,7 @@ import Supabase
 
 protocol SessionRepository: Sendable {
     func recent(userID: UUID, limit: Int) async throws -> [Session]
+    func fetch(id: UUID) async throws -> Session
     func start(userID: UUID, roomID: UUID?, cigarID: UUID?, drinkID: UUID?,
                lightingMethod: Session.LightingMethod?, isGhost: Bool) async throws -> Session
     func finish(_ session: Session) async throws -> Session
@@ -22,6 +23,14 @@ struct LiveSessionRepository: SessionRepository {
             .limit(limit)
             .execute().value
         return dtos.map { $0.toDomain() }
+    }
+
+    func fetch(id: UUID) async throws -> Session {
+        let dto: DTO.Session = try await client.from("sessions").select()
+            .eq("id", value: id.uuidString)
+            .single()
+            .execute().value
+        return dto.toDomain()
     }
 
     func start(userID: UUID, roomID: UUID?, cigarID: UUID?, drinkID: UUID?,

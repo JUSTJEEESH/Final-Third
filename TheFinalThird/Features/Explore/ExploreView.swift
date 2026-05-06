@@ -105,7 +105,7 @@ struct ExploreView: View {
             }
             .padding(.horizontal, FTSpace.lg)
             .padding(.top, FTSpace.lg)
-            .padding(.bottom, 96)
+            .padding(.bottom, FTSpace.lg)
         }
     }
 
@@ -118,7 +118,7 @@ struct ExploreView: View {
             }
             .padding(.horizontal, FTSpace.lg)
             .padding(.top, FTSpace.lg)
-            .padding(.bottom, 96)
+            .padding(.bottom, FTSpace.lg)
         }
     }
 }

@@ -80,7 +80,7 @@ struct DropsView: View {
                     }
                 }
                 .padding(.horizontal, FTSpace.lg)
-                .padding(.bottom, 96)
+                .padding(.bottom, FTSpace.lg)
             }
         }
         .task { await vm.load() }

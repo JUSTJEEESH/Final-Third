@@ -8,6 +8,7 @@ enum AppRoute: Hashable, Sendable {
     case drop(UUID)
     case theUsual
     case profile(UUID)
+    case session(UUID)
 }
 
 @MainActor
