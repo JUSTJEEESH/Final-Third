@@ -15,16 +15,16 @@ final class AuthService {
 
     private(set) var state: AuthState = .unknown
     private let client: SupabaseClient
-    private var observerTask: Task<Void, Never>?
 
     init(client: SupabaseClient = .live) {
         self.client = client
-        observerTask = Task { [weak self] in
-            await self?.observeAuthChanges()
-        }
+        // The observer task captures self weakly and ends naturally when
+        // self deallocates (the for-await body becomes a no-op via `self?`
+        // and the SDK's stream still completes when the client tears down).
+        // AuthService lives for the app's lifetime in AppContainer, so we
+        // don't need a deinit cancel.
+        Task { [weak self] in await self?.observeAuthChanges() }
     }
-
-    deinit { observerTask?.cancel() }
 
     func bootstrap() async {
         do {
@@ -54,9 +54,10 @@ final class AuthService {
 
     func signUp(email: String, password: String) async throws {
         let response = try await client.auth.signUp(email: email, password: password)
-        if let user = response.user {
-            state = .signedIn(userID: user.id)
-        }
+        // supabase-swift returns AuthResponse with non-optional `user`; if
+        // email confirmation is required, `session` may be nil but a user
+        // row still exists, so we mark state.signedIn either way.
+        state = .signedIn(userID: response.user.id)
     }
 
     func signOut() async {

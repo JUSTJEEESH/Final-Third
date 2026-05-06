@@ -70,7 +70,7 @@ final class AudioEngine {
             try session.setCategory(
                 .playback,
                 mode: .default,
-                options: [.mixWithOthers, .allowAirPlay, .allowBluetooth, .duckOthers]
+                options: [.mixWithOthers, .allowAirPlay, .allowBluetoothHFP, .duckOthers]
             )
             try session.setActive(true)
         } catch {
@@ -89,7 +89,7 @@ final class AudioEngine {
             self.buffer = buffer
 
             if !engine.isRunning { try engine.start() }
-            player.scheduleBuffer(buffer, at: nil, options: [.loops])
+            await player.scheduleBuffer(buffer, at: nil, options: [.loops])
             player.volume = volume
             player.play()
             isPlaying = true
