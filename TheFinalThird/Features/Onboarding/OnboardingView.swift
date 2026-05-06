@@ -120,8 +120,19 @@ struct OnboardingView: View {
                 }
             }
             .padding(.horizontal, FTSpace.xl)
-            .padding(.bottom, FTSpace.xl)
             .padding(.top, FTSpace.sm)
+
+            // Always-available escape hatch. If save fails (e.g. stale
+            // session whose auth user was deleted), the user can sign out
+            // and start over without dropping to Settings.
+            Button {
+                Task { await container.auth.signOut() }
+            } label: {
+                Text("Not you? Sign out")
+                    .font(FTType.caption(12))
+                    .foregroundStyle(FTColor.inkFaint)
+            }
+            .padding(.bottom, FTSpace.xl)
         }
     }
 }
