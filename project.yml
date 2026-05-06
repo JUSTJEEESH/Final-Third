@@ -29,7 +29,7 @@ settings:
 packages:
   Supabase:
     url: https://github.com/supabase-community/supabase-swift
-    from: 2.20.0
+    exactVersion: 2.27.0
   RevenueCat:
     url: https://github.com/RevenueCat/purchases-ios
     from: 5.0.0
