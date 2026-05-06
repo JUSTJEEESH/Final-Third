@@ -194,7 +194,7 @@ extension JSONDecoder {
         d.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
             let raw = try container.decode(String.self)
-            if let date = Self.parseSupabaseDate(raw) { return date }
+            if let date = JSONDecoder.parseSupabaseDate(raw) { return date }
             throw DecodingError.dataCorruptedError(
                 in: container,
                 debugDescription: "Unparseable date: \(raw)"
