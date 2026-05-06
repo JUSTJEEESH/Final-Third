@@ -176,7 +176,7 @@ private struct NameStep: View {
             FTField(title: "Name or handle", text: $vm.displayName,
                     placeholder: "Marcus", autocap: .words)
             FTField(title: "@handle (optional)", text: $vm.handle,
-                    placeholder: "marcus", autocap: .never)
+                    placeholder: "marcus", autocap: .never, disableAutocorrect: true)
             FTField(title: "Bio (optional)", text: $vm.bio,
                     placeholder: "What's your story?", autocap: .sentences, axis: .vertical)
         }
@@ -443,6 +443,7 @@ private struct FTField: View {
     @Binding var text: String
     var placeholder: String = ""
     var autocap: TextInputAutocapitalization = .sentences
+    var disableAutocorrect: Bool = false
     var axis: Axis = .horizontal
 
     var body: some View {
@@ -455,7 +456,7 @@ private struct FTField: View {
                       prompt: Text(placeholder).foregroundColor(FTColor.inkFaint),
                       axis: axis)
                 .textInputAutocapitalization(autocap)
-                .autocorrectionDisabled(autocap == .never)
+                .autocorrectionDisabled(disableAutocorrect)
                 .padding(FTSpace.md)
                 .background(FTColor.surface)
                 .clipShape(RoundedRectangle(cornerRadius: FTRadius.md))
