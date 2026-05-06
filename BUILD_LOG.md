@@ -264,15 +264,97 @@ Use this to:
 
 ---
 
+## 2026-05-06 — Milestone 13: Journal
+
+**What landed**
+
+- `Features/Journal/JournalViewModel.swift` — loads recent sessions (200 max from server), hydrates the cigar lookup table with a `TaskGroup`, derives stats (total sessions, total minutes, favorite cigar, preferred strength) and a `WeeklyRecap` (last 7 days, count + average minutes). Honors the **30-session free limit** via `visibleSessions` / `hiddenCount`.
+- `Features/Journal/JournalView.swift` — display title, three stat cards, weekly recap card, recent session list with date + duration + rating, and a `PaywallTeaser` row that surfaces hidden count and opens `PaywallView` when free user has more than 30 sessions.
+
+**Decisions**
+
+- Stats are computed in the ViewModel from the loaded set so we don't need a separate stats endpoint at v1.
+- "Favorite cigar" uses session count, not duration — count is more durable signal early when there's little data.
+- Empty state copy is "Your first session will land here." — atmosphere over status.
+
+---
+
+## 2026-05-06 — Milestone 14: Home
+
+**What landed**
+
+- `Features/Home/HomeViewModel.swift` — parallel load via `TaskGroup` of profile, usual + its cigar, top 4 active rooms, current drop + its cigar, and 3 nearby events filtered by the user's saved city. `greeting` reads time-aware copy from `app_config` (`greeting.evening` / `greeting.late` / `greeting.morning`) — server-driven copy in action.
+- `Features/Home/HomeView.swift` — `NavigationStack` with destinations for `room` and `cigar` deep links. Sections: Greeting (display + ember badge for streak), Tonight's Pick (links to cigar detail), Your Ritual (preferred time, default cigar), Drop of the Week (live capsule, hero copy), Active Rooms (gold dot + chevron rows), Nearby Tonight (city-scoped events).
+
+**Decisions**
+
+- Tonight's Pick falls back: usual cigar → drop cigar → nothing. Keeps the section meaningful even before The Usual is set up.
+- All sections degrade gracefully — empty states are quiet copy ("Nothing yet — be the first to step in."), never error UI.
+
+---
+
+## 2026-05-06 — Milestone 15: Profile + Social + Chemistry
+
+**What landed**
+
+- `Features/Profile/ProfileViewModel.swift` — loads profile, usual (for streak), connections, chemistry rows in parallel; updates audio default and ghost-mode default through `ProfileRepository.updatePreferences`.
+- `Features/Profile/ProfileView.swift` — header (avatar with active gold ring, display name, handle, city), three stat cards (streak, connections, badges), Chemistry section ("You smoke well together" + sessions/minutes), Connections section (pending requests highlighted, accepted list), Preferences card (ambient audio menu, ghost-by-default toggle), and Sign Out at the bottom.
+
+**Decisions**
+
+- Chemistry strings come from PRD example copy verbatim — this is identity, not metric.
+- Audio + ghost prefs persist immediately on change via repository — no save button.
+- Badges list is wired through `badgeCount` field (data model already supports `user_badges`); awarding logic + the badge gallery view are deferred to a polish pass.
+
+---
+
+## 2026-05-06 — Milestone 16: Events + Drops
+
+**What landed**
+
+- `Features/Events/EventsView.swift` — list of upcoming events with title / time / location, RSVP buttons (Going / Maybe) that fire `event_rsvps` upserts; empty state encourages event creation.
+- `Features/Drops/DropsView.swift` — current live drop (gold "Live" capsule, brand caps + display name + hero copy + relative end time) plus an upcoming drop list. Falls back to "No drop live right now."
+
+**Decisions**
+
+- Event creation form is intentionally not in v1 — the PRD lists creation but RSVP-first is the higher-value loop. Add when there's a way to verify the host (not in scope here).
+- Drops surface is read-only on iOS; admins schedule via the Supabase dashboard for now.
+
+---
+
+## 2026-05-06 — Milestone 17: Paywall + premium gating
+
+**What landed**
+
+- `Features/Paywall/PaywallView.swift`:
+  - Hero copy from `app_config.paywall.copy` (server-driven).
+  - Four benefit cards: full journal, private rooms, pairings, advanced ritual.
+  - Buy CTA → `EntitlementService.purchase(packageIdentifier:)` against the RC offering's `$rc_monthly`; closes on entitlement flip.
+  - Restore purchases CTA → `EntitlementService.restore`.
+  - Analytics: `paywallShown(trigger:)` on appear; `paywallPurchased(productID:)` on success.
+- `PremiumGateModifier` + `View.premiumGate(isPremium:trigger:)` — wraps any view to disable + dim it when not premium and intercept taps to surface the paywall sheet. Used from `JournalView`'s teaser row.
+
+**Decisions**
+
+- Paywall identifier is `$rc_monthly` for now — RC offerings let us swap product without releasing.
+- Gating is a view modifier rather than a wrapping container — easier to apply piecemeal.
+
+---
+
+## 2026-05-06 — Milestone 17.5: Tab bar wired to real features
+
+`MainTabView` now routes Home/Explore/Lounge/Journal/Profile to their actual feature views (`HomeView`, `ExploreView`, `LoungeView`, `JournalView`, `ProfileView`). Placeholder structs removed; tab bar overlay padding added so feature content doesn't sit under the bar.
+
+---
+
 ## Open items (next milestones)
 
-- M13: Journal (history list, stats, weekly recap, premium gate at 30 sessions).
-- M14: Home tab (greeting, Tonight's Pick, Active Rooms, Your Ritual, Drop of the Week, Nearby Tonight) + audio assets for Lighting Ceremony + ambient themes.
-- M15: Profile + Social (profile screen, connections, Chemistry, badges).
-- M16: Events + Drops surfaces.
-- M17: Paywall (RevenueCat) and gate wiring.
-- M18: Audio + Voice integration in `RoomView` (ducking + LiveKit token edge function).
-- M19: Final polish, accessibility, snapshot/UI tests, performance pass.
+- M18: Voice + ambient audio integration in `RoomView` — wire `VoiceService` PTT button, ambient theme picker per room, ducking on active speaker, LiveKit token edge function.
+- M19: Audio assets for Lighting Ceremony (match strike + flame whoosh + ember bed) and ambient themes (lounge murmur, jazz, lo-fi, rain, fireplace) — `AudioEngine.load(theme:)` already reads `Resources/Sounds/<theme>.m4a`.
+- M20: Tests — AuthService (Apple flow + state transitions), OfflineQueue (replay + idempotency + persistence), RealtimeService (dedupe, ref counting), repositories (round-trip), snapshot tests for design system + ceremony key frames.
+- M21: Settings (account, audio prefs, voice prefs, ghost default surfaced from Profile, notification opt-ins, premium status, privacy / open source / about).
+- M22: The Usual editor (time + default cigar + drink) sheet from Home/Profile.
+- M23: Final polish — empty/error/loading state pass, accessibility audit, performance pass on long chats, App Store screenshots and copy.
 
 ## Risks logged
 
