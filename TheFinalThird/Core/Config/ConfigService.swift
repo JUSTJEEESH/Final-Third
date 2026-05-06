@@ -35,7 +35,11 @@ final class ConfigService {
                 .execute()
                 .value
             var map: [String: AnyDecodable] = [:]
-            for row in rows { map[row.key] = AnyDecodable(row.value) }
+            // row.value is already an AnyDecodable produced by JSONDecoder;
+            // store it directly. Wrapping it again puts the struct itself
+            // into AnyDecodable.raw, which then fails `raw as? T` and
+            // crashes JSONSerialization with __SwiftValue.
+            for row in rows { map[row.key] = row.value }
             values = map
             lastFetchedAt = .now
         } catch {
