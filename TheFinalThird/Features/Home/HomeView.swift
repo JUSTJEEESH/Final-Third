@@ -4,6 +4,7 @@ struct HomeView: View {
     @Environment(AppContainer.self) private var container
     @Environment(DeepLinkRouter.self) private var router
     @State private var vm: HomeViewModel?
+    @State private var showLightUp = false
 
     var body: some View {
         NavigationStack {
@@ -28,6 +29,12 @@ struct HomeView: View {
                 await vm?.load()
             }
         }
+        .fullScreenCover(isPresented: $showLightUp) {
+            if case .signedIn(let userID) = container.auth.state {
+                SessionFlowView(userID: userID, roomID: nil,
+                                isGhost: vm?.profile?.ghostModeDefault ?? false)
+            }
+        }
     }
 
     @ViewBuilder
@@ -36,6 +43,7 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: FTSpace.lg) {
                 Greeting(name: vm.profile?.displayName, greeting: vm.greeting,
                          streak: vm.usual?.streakCount ?? 0)
+                lightUpButton
                 if let cigar = vm.tonightsPick { TonightsPick(cigar: cigar) }
                 if let usual = vm.usual { YourRitual(usual: usual, cigar: vm.usualCigar) }
                 if let drop = vm.currentDrop, let cigar = vm.dropCigar {
@@ -49,6 +57,40 @@ struct HomeView: View {
             .padding(.horizontal, FTSpace.lg)
             .padding(.bottom, 96)
         }
+    }
+
+    private var lightUpButton: some View {
+        Button {
+            HapticsService.shared.tap()
+            showLightUp = true
+        } label: {
+            HStack(spacing: FTSpace.md) {
+                Image(systemName: "flame.fill")
+                    .foregroundStyle(LinearGradient(
+                        colors: [FTColor.emberCore, FTColor.emberHot, FTColor.ember],
+                        startPoint: .top, endPoint: .bottom
+                    ))
+                    .font(.system(size: 22))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Light up").font(FTType.heading(18, weight: .semibold))
+                    Text("Choose your cigar and step in.")
+                        .font(FTType.caption(11)).foregroundStyle(FTColor.inkInverse.opacity(0.65))
+                }
+                Spacer()
+                Image(systemName: "arrow.right")
+            }
+            .foregroundStyle(FTColor.inkInverse)
+            .padding(.horizontal, FTSpace.lg)
+            .padding(.vertical, FTSpace.md)
+            .frame(maxWidth: .infinity, minHeight: 64)
+            .background(LinearGradient(
+                colors: [FTColor.gold, FTColor.goldLo],
+                startPoint: .top, endPoint: .bottom
+            ))
+            .clipShape(RoundedRectangle(cornerRadius: FTRadius.lg, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Light up — start a session")
     }
 }
 
