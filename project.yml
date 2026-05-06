@@ -19,6 +19,8 @@ settings:
     SWIFT_TREAT_WARNINGS_AS_ERRORS: YES
     GCC_TREAT_WARNINGS_AS_ERRORS: YES
     OTHER_SWIFT_FLAGS: "-warnings-as-errors"
+    DEVELOPMENT_TEAM: RB657RW2UW
+    CODE_SIGN_STYLE: Automatic
 
 packages:
   Supabase:
