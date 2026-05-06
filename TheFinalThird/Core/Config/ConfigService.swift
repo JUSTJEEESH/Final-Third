@@ -50,9 +50,11 @@ final class ConfigService {
 }
 
 /// Type-erased JSON value for `app_config.value` jsonb column.
-/// Not `Sendable` because `Any` isn't — `ConfigService` (`@MainActor`) is the
-/// only owner so isolation comes from the actor, not the type.
-struct AnyDecodable: Decodable {
+/// `@unchecked Sendable` because `raw: Any` is set once during decoding
+/// (immutable thereafter) and only ever holds JSON-derived value types
+/// (String, Bool, Double, NSNull, recursively). The supabase-swift call
+/// site requires the row type to be Sendable.
+struct AnyDecodable: Decodable, @unchecked Sendable {
     let raw: Any
 
     init(from decoder: Decoder) throws {
