@@ -182,13 +182,43 @@ extension DTO.Drop {
     }
 }
 
-/// Shared decoder that matches Supabase JSON output.
+/// Shared decoder that matches Supabase JSON output. Postgres timestamptz
+/// columns serialize as ISO-8601 strings with up to 6 digits of fractional
+/// seconds and an explicit `+00:00` offset. The default
+/// `JSONDecoder.dateDecodingStrategy = .iso8601` rejects fractional seconds
+/// entirely, so we install a custom strategy that tolerates microseconds,
+/// milliseconds, no fractional component, and trailing `Z` for UTC.
 extension JSONDecoder {
     static let supabase: JSONDecoder = {
         let d = JSONDecoder()
-        d.dateDecodingStrategy = .iso8601
+        d.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let raw = try container.decode(String.self)
+            if let date = Self.parseSupabaseDate(raw) { return date }
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Unparseable date: \(raw)"
+            )
+        }
         return d
     }()
+
+    /// Tries fractional-second-aware ISO 8601 first (truncating microseconds
+    /// to the 3 digits that ISO8601DateFormatter actually supports), then
+    /// falls back to plain ISO 8601 without fractional seconds.
+    static func parseSupabaseDate(_ raw: String) -> Date? {
+        let trimmed = raw.replacingOccurrences(
+            of: #"(\.\d{3})\d+"#, with: "$1", options: .regularExpression
+        )
+
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let d = fractional.date(from: trimmed) { return d }
+
+        let basic = ISO8601DateFormatter()
+        basic.formatOptions = [.withInternetDateTime]
+        return basic.date(from: trimmed)
+    }
 }
 
 extension JSONEncoder {

@@ -9,37 +9,60 @@ struct LoungeView: View {
                 FTColor.background.ignoresSafeArea()
                 content
             }
-            .navigationTitle("Lounge")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbarBackground(FTColor.background, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .navigationDestination(for: AppRoute.self) { route in
+                if case let .room(id) = route { RoomView(roomID: id) }
+            }
+            .navigationBarHidden(true)
         }
         .task { await vm.load() }
+        .refreshable { await vm.load() }
     }
 
     @ViewBuilder
     private var content: some View {
-        if vm.isLoading {
-            ProgressView().tint(FTColor.gold)
-        } else if vm.rooms.isEmpty {
-            EmptyLoungeView()
-        } else {
-            ScrollView {
-                LazyVStack(spacing: FTSpace.md) {
-                    ForEach(vm.rooms) { room in
-                        NavigationLink(value: AppRoute.room(room.id)) {
-                            RoomRow(room: room, occupants: vm.occupants[room.id] ?? 0)
-                        }.buttonStyle(.plain)
+        ScrollView {
+            VStack(alignment: .leading, spacing: FTSpace.lg) {
+                header
+                if vm.isLoading && vm.rooms.isEmpty {
+                    FTLoadingView(label: "Looking for open rooms…")
+                        .frame(height: 240)
+                } else if let error = vm.error, vm.rooms.isEmpty {
+                    FTErrorView(message: error) {
+                        Task { await vm.load() }
+                    }
+                    .frame(height: 240)
+                } else if vm.rooms.isEmpty {
+                    FTEmptyView(
+                        symbol: "smoke",
+                        title: "Quiet so far tonight.",
+                        subtitle: "Step in. Someone always shows up."
+                    )
+                } else {
+                    LazyVStack(spacing: FTSpace.md) {
+                        ForEach(vm.rooms) { room in
+                            NavigationLink(value: AppRoute.room(room.id)) {
+                                RoomRow(room: room, occupants: vm.occupants[room.id] ?? 0)
+                            }.buttonStyle(.plain)
+                        }
                     }
                 }
-                .padding(.horizontal, FTSpace.lg)
-                .padding(.top, FTSpace.md)
-                .padding(.bottom, 96)
             }
-            .navigationDestination(for: AppRoute.self) { route in
-                if case let .room(id) = route { RoomView(roomID: id) }
-            }
+            .padding(.horizontal, FTSpace.lg)
+            .padding(.top, FTSpace.md)
+            .padding(.bottom, 96)
         }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Lounge")
+                .font(FTType.display(34))
+                .foregroundStyle(FTColor.gold)
+            Text("Choose a chair.")
+                .font(FTType.body(14))
+                .foregroundStyle(FTColor.inkMuted)
+        }
+        .padding(.top, FTSpace.lg)
     }
 }
 
@@ -69,20 +92,8 @@ private struct RoomRow: View {
                         .padding(.horizontal, FTSpace.sm).padding(.vertical, 4)
                         .background(FTColor.surfaceHi).clipShape(Capsule())
                 }
+                Image(systemName: "chevron.right").foregroundStyle(FTColor.inkFaint)
             }
-        }
-    }
-}
-
-private struct EmptyLoungeView: View {
-    var body: some View {
-        VStack(spacing: FTSpace.md) {
-            Image(systemName: "smoke").font(.system(size: 36))
-                .foregroundStyle(FTColor.inkFaint)
-            Text("Quiet so far tonight.")
-                .font(FTType.body(15)).foregroundStyle(FTColor.inkMuted)
-            Text("Step in. Someone always shows up.")
-                .font(FTType.caption(12)).foregroundStyle(FTColor.inkFaint)
         }
     }
 }

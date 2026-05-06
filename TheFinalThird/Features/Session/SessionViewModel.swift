@@ -7,6 +7,7 @@ final class SessionViewModel {
     enum Phase: Equatable {
         case selectingCigar
         case selectingDrink
+        case selectingLightingMethod
         case lighting
         case active
         case summary
@@ -55,6 +56,16 @@ final class SessionViewModel {
 
     func selectDrink(_ drink: Drink) {
         self.drink = drink
+        phase = .selectingLightingMethod
+    }
+
+    func skipDrink() {
+        drink = nil
+        phase = .selectingLightingMethod
+    }
+
+    func chooseLightingMethod(_ method: Session.LightingMethod) {
+        lightingMethod = method
         phase = .lighting
     }
 
