@@ -8,7 +8,7 @@ struct RootView: View {
         switch container.auth.state {
         case .unknown:
             SplashView()
-        case .signedOut:
+        case .signedOut, .awaitingEmailConfirmation:
             AuthView()
         case .signedIn:
             MainTabView()

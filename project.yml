@@ -81,6 +81,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.thefinalthird.app
         DEVELOPMENT_ASSET_PATHS: ""
         INFOPLIST_KEY_UIRequiresFullScreen: NO
+        CODE_SIGN_ENTITLEMENTS: TheFinalThird/App/TheFinalThird.entitlements
     dependencies:
       - package: Supabase
       - package: RevenueCat

@@ -60,7 +60,17 @@ final class AuthViewModel {
         }
         do {
             try await auth.signUp(email: email, password: password)
-            step = .profileSetup
+            // If Supabase has email confirmation enabled, auth.state moves to
+            // .awaitingEmailConfirmation. Surface that to the user instead of
+            // jumping into profile setup with no session.
+            switch auth.state {
+            case .awaitingEmailConfirmation:
+                error = "Check your email — we sent a verification link."
+            case .signedIn:
+                step = .profileSetup
+            default:
+                error = "Couldn't create your account. Try again."
+            }
         } catch {
             self.error = "Couldn't create your account. Try again."
         }

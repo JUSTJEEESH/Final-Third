@@ -10,6 +10,7 @@ final class AuthService {
     enum AuthState: Sendable, Equatable {
         case unknown
         case signedOut
+        case awaitingEmailConfirmation
         case signedIn(userID: UUID)
     }
 
@@ -54,10 +55,15 @@ final class AuthService {
 
     func signUp(email: String, password: String) async throws {
         let response = try await client.auth.signUp(email: email, password: password)
-        // supabase-swift returns AuthResponse with non-optional `user`; if
-        // email confirmation is required, `session` may be nil but a user
-        // row still exists, so we mark state.signedIn either way.
-        state = .signedIn(userID: response.user.id)
+        // If Supabase has email confirmation enabled, response.session is nil
+        // and the user can't make authenticated calls until they click the
+        // verification link. Don't claim signed in — we'd otherwise jump
+        // into the main tab and immediately fail every API call.
+        if response.session != nil {
+            state = .signedIn(userID: response.user.id)
+        } else {
+            state = .awaitingEmailConfirmation
+        }
     }
 
     func signOut() async {
