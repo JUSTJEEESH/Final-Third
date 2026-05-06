@@ -30,13 +30,16 @@ struct MainTabView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            switch selection {
-            case .home:    HomePlaceholder()
-            case .explore: ExploreView()
-            case .lounge:  LoungeView()
-            case .journal: JournalPlaceholder()
-            case .profile: ProfilePlaceholder()
+            Group {
+                switch selection {
+                case .home:    HomeView()
+                case .explore: ExploreView()
+                case .lounge:  LoungeView()
+                case .journal: JournalView()
+                case .profile: ProfileView()
+                }
             }
+            .padding(.bottom, 64) // tab bar overlay clearance
 
             FTTabBar(selection: $selection)
         }
@@ -71,34 +74,5 @@ private struct FTTabBar: View {
         .padding(.bottom, FTSpace.lg)
         .background(FTColor.surfaceLo)
         .overlay(alignment: .top) { GoldDivider().opacity(0.4) }
-    }
-}
-
-// MARK: Placeholders (real features land in Features/*)
-
-private struct HomePlaceholder: View {
-    var body: some View { CenteredTitle("Home", subtitle: "Tonight's pick lands here.") }
-}
-
-private struct JournalPlaceholder: View {
-    var body: some View { CenteredTitle("Journal", subtitle: "Your sessions, kept.") }
-}
-
-private struct ProfilePlaceholder: View {
-    var body: some View { CenteredTitle("Profile", subtitle: "Your chair, your ritual.") }
-}
-
-private struct CenteredTitle: View {
-    let title: String
-    let subtitle: String
-    init(_ title: String, subtitle: String) { self.title = title; self.subtitle = subtitle }
-
-    var body: some View {
-        VStack(spacing: FTSpace.sm) {
-            Text(title).font(FTType.display(36)).foregroundStyle(FTColor.gold)
-            Text(subtitle).font(FTType.body(14)).foregroundStyle(FTColor.inkMuted)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.bottom, 80)
     }
 }
