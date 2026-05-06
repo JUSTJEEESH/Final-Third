@@ -24,14 +24,14 @@ final class CoreDataStack {
             }
         }
         container.viewContext.automaticallyMergesChangesFromParent = true
-        container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+        container.viewContext.mergePolicy = NSMergePolicy.mergeByPropertyObjectTrump
     }
 
     var viewContext: NSManagedObjectContext { container.viewContext }
 
     func backgroundContext() -> NSManagedObjectContext {
         let ctx = container.newBackgroundContext()
-        ctx.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+        ctx.mergePolicy = NSMergePolicy.mergeByPropertyObjectTrump
         return ctx
     }
 }

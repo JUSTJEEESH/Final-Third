@@ -50,7 +50,9 @@ final class ConfigService {
 }
 
 /// Type-erased JSON value for `app_config.value` jsonb column.
-struct AnyDecodable: Decodable, Sendable {
+/// Not `Sendable` because `Any` isn't — `ConfigService` (`@MainActor`) is the
+/// only owner so isolation comes from the actor, not the type.
+struct AnyDecodable: Decodable {
     let raw: Any
 
     init(from decoder: Decoder) throws {
