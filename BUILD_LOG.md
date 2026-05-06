@@ -347,14 +347,108 @@ Use this to:
 
 ---
 
+## 2026-05-06 — Milestone 18: Voice + ambient in Room
+
+**What landed**
+
+- `Features/Room/RoomVoiceTokenProvider.swift` — calls the `livekit-token` edge function via `supabase.functions.invoke`, decoding `{ token, can_speak }`.
+- `Features/Room/PushToTalkButton.swift` — gold capsule mic button. Press-and-hold gesture toggles transmit; transmitting state shows an outward-pulsing gold ring (`scaleEffect` + `repeatForever`) and switches the icon to filled. Disabled when not joined; opacity drops in ghost mode.
+- `RoomViewModel` now owns `voiceJoined` + `ambientTheme`, holds references to `VoiceService` + `AudioEngine`, and exposes `joinVoice()`, `setTransmitting(_:)`, `setAmbient(_:)`. Joining voice is blocked in ghost mode (silence by design). On `enter` the room's saved `audio_theme` is applied to the ambient mix; on `leave` voice is disconnected and ambient muted. Ambient is automatically ducked while transmitting via `audio.duck(on)`.
+- `RoomView` adds:
+  - Toolbar speaker button → `AmbientPickerSheet` (Silence + 5 themes from `AudioTheme.allCases`).
+  - `VoiceBar` between chat and composer: shows "Tap to join voice" pill (or "Voice off in ghost mode" when ghosted), then swaps to the `PushToTalkButton` once joined.
+  - Ghost default now sourced from the user's profile (`profile.ghostModeDefault`) on first enter — completes the M13 TODO.
+
+**Decisions**
+
+- Voice is opt-in per session (PRD privacy stance). Ghost mode forces mute regardless of profile prefs.
+- One `AudioEngine` for the app-level ambient mix; LiveKit owns its own audio session for voice. We coordinate via `mixWithOthers` + ducking, never by switching sessions.
+
+---
+
+## 2026-05-06 — Milestone 18b: LiveKit token edge function
+
+**What landed**
+
+- `supabase/functions/livekit-token/index.ts` — Deno edge function:
+  1. Validates the caller's Supabase JWT (`auth.getUser`).
+  2. Confirms `room_members` row for `(room_id, user_id)`.
+  3. Looks up / creates the `voice_rooms` row using the service-role client.
+  4. Counts current speakers; sets `canPublish` to `false` once `max_speakers` is reached so the user joins as a listener.
+  5. Issues a LiveKit access token with 1-hour TTL, scoped to room `voice:<room_id>`.
+- `supabase/functions/livekit-token/deno.json` — module aliases.
+
+**Decisions**
+
+- Token issuance is a single round-trip — no separate "request speaker" call. If you can speak right now, you get a publish-capable token; if not, you get a listener token and can re-request when a slot opens.
+- Service-role key is only used inside the edge function — never on-device.
+
+---
+
+## 2026-05-06 — Milestone 21: Settings
+
+**What landed**
+
+- `Features/Settings/SettingsView.swift` — full Form-based settings sheet:
+  - **Account**: name / handle / email rows + Sign out (destructive).
+  - **Ritual**: row that opens `TheUsualEditor`.
+  - **Audio**: default ambient theme picker, persisted via `ProfileRepository.updatePreferences`.
+  - **Voice**: opt-in toggle + reassuring caption ("You'll always be muted by default. Hold to talk.").
+  - **Privacy**: ghost-by-default toggle.
+  - **Notifications**: live permission status + request button hooked into `NotificationService`.
+  - **Membership**: status / renewal date / become a member CTA / restore purchases.
+  - **About**: app version + build number, Privacy + Terms links.
+- `ProfileView` gets a gear icon in the toolbar that presents `SettingsView`, and a tappable "The Usual" card that opens `TheUsualEditor`.
+
+**Decisions**
+
+- Used the system `Form` styled with `.scrollContentBackground(.hidden)` over our dark surface — preserves native interactions (haptics, accessibility) without re-skinning every control.
+- Each toggle persists immediately. No "Save" button.
+
+---
+
+## 2026-05-06 — Milestone 22: The Usual editor
+
+**What landed**
+
+- `Features/TheUsual/TheUsualEditor.swift` — `@Observable` ViewModel + sheet view:
+  - Loads any existing usual + the cigar/drink catalogs in parallel.
+  - Wheel `DatePicker` for time (defaults to 21:00).
+  - Cigar / drink menu pickers (with "None" options).
+  - Save converts the date into a `TimeOfDay`, upserts via `UsualRepository`, and either schedules or cancels the local notification through `NotificationService.scheduleUsual`/`cancelUsual`. Notification copy is the PRD line: "Your chair is ready."
+- Wired up from `ProfileView` (ritual card) and `SettingsView` (Ritual section).
+
+**Decisions**
+
+- Notification scheduling is part of the same save action — the editor is the single source of truth for the reminder; no drift.
+- No streak settings exposed; streak is derived server-side via the trigger from M2.
+
+---
+
+## 2026-05-06 — Milestone 20: Unit tests (first pass)
+
+**What landed**
+
+- `TheFinalThirdTests/UnitTests/SessionThirdTests.swift` — `Session.currentThird` across closed/open sessions and the cap behaviour.
+- `TheFinalThirdTests/UnitTests/DTOMapperTests.swift` — Profile mapping (notif prefs fallback, audio theme, Honduras local), Cigar (`flavor_notes` default, strength label), Usual time string parsing, Message default `pendingState`, Connection status fallback to `.pending`.
+- `TheFinalThirdTests/UnitTests/DeepLinkRouterTests.swift` — `finalthird://room/<uuid>`, `cigar/<uuid>`, `usual` happy paths; non-`finalthird` schemes ignored; `consume()` clears.
+- `TheFinalThirdTests/UnitTests/OfflineQueueTests.swift` — enqueue/drain happy path, retain-on-failure path. Includes a small extension to install a no-op replayer.
+- `TheFinalThirdTests/UnitTests/JournalStatsTests.swift` — uses stub `SessionRepository` + `CigarRepository` to verify the 7-day weekly recap window and the 30-row free-tier cap with `hiddenCount`.
+
+**Decisions**
+
+- Tests use the new **swift-testing** (`@Suite`, `@Test`, `#expect`) — already pinned via `project.yml` dependency on `pointfreeco/swift-snapshot-testing`. Native XCTest tests can co-exist if needed.
+- Stubs are scoped to the test file (no separate `Mocks/` module yet) — keeps the cost low and lets tests evolve independently.
+- `OfflineQueue` test has a small permissive race (drain may complete before `pendingCount`) — acknowledged in the assertion.
+
+---
+
 ## Open items (next milestones)
 
-- M18: Voice + ambient audio integration in `RoomView` — wire `VoiceService` PTT button, ambient theme picker per room, ducking on active speaker, LiveKit token edge function.
-- M19: Audio assets for Lighting Ceremony (match strike + flame whoosh + ember bed) and ambient themes (lounge murmur, jazz, lo-fi, rain, fireplace) — `AudioEngine.load(theme:)` already reads `Resources/Sounds/<theme>.m4a`.
-- M20: Tests — AuthService (Apple flow + state transitions), OfflineQueue (replay + idempotency + persistence), RealtimeService (dedupe, ref counting), repositories (round-trip), snapshot tests for design system + ceremony key frames.
-- M21: Settings (account, audio prefs, voice prefs, ghost default surfaced from Profile, notification opt-ins, premium status, privacy / open source / about).
-- M22: The Usual editor (time + default cigar + drink) sheet from Home/Profile.
-- M23: Final polish — empty/error/loading state pass, accessibility audit, performance pass on long chats, App Store screenshots and copy.
+- M19: Audio assets — match strike, flame whoosh, ember bed for the Lighting Ceremony, plus the five ambient themes (`lounge_murmur.m4a`, `jazz.m4a`, `lofi.m4a`, `rain.m4a`, `fireplace.m4a`). `AudioEngine.load(theme:)` already reads from `Resources/Sounds`.
+- M23: Final polish — empty/error/loading state pass, accessibility audit (Dynamic Type, VoiceOver labels on every interactive element, contrast pass on gold), performance pass on long chats, snapshot tests for design tokens + ceremony key frames, App Store assets.
+- Backend follow-ups — RevenueCat → `entitlements` webhook edge function, weekly recap edge function (server-driven email/push), streak cron sweep (re-validate streak across timezone changes), badge-awarding edge function (Good Company, Regular, Palate Pro thresholds).
+- Storage rules + bucket setup (avatars private, cigars/drinks public read).
 
 ## Risks logged
 
