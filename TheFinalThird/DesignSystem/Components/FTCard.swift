@@ -4,8 +4,11 @@ struct FTCard<Content: View>: View {
     var padding: CGFloat = FTSpace.lg
     var elevated: Bool = false
     var texture: FTTexture? = .leather
-    var textureIntensity: Double = 0.18
-    var textureTileSize: CGFloat = 220
+    var textureIntensity: Double = 0.22
+    /// Zoom into the texture image for finer grain detail. >1 shows a
+    /// smaller crop at higher resolution. 1.4 looks right for leather
+    /// on a card-sized surface.
+    var textureZoom: CGFloat = 1.4
     @ViewBuilder let content: () -> Content
 
     var body: some View {
@@ -17,7 +20,7 @@ struct FTCard<Content: View>: View {
                     if let texture {
                         TexturePanel(texture: texture,
                                      opacity: textureIntensity,
-                                     tileSize: textureTileSize)
+                                     zoom: textureZoom)
                     }
                     // Soft top highlight — light catching the leather edge.
                     LinearGradient(
