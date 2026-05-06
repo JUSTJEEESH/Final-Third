@@ -216,6 +216,7 @@ private struct ComposerBar: View {
                 .background(FTColor.surface)
                 .clipShape(RoundedRectangle(cornerRadius: FTRadius.md))
                 .foregroundStyle(FTColor.ink)
+                .accessibilityLabel("Message")
             Button(action: {
                 HapticsService.shared.tap()
                 onSend()
@@ -228,6 +229,7 @@ private struct ComposerBar: View {
                     .clipShape(Circle())
             }
             .disabled(text.isEmpty)
+            .accessibilityLabel("Send message")
         }
         .padding(FTSpace.lg)
         .background(FTColor.surfaceLo)

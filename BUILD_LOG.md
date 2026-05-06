@@ -443,12 +443,59 @@ Use this to:
 
 ---
 
-## Open items (next milestones)
+## 2026-05-06 — Backend follow-ups: edge functions + storage
 
-- M19: Audio assets — match strike, flame whoosh, ember bed for the Lighting Ceremony, plus the five ambient themes (`lounge_murmur.m4a`, `jazz.m4a`, `lofi.m4a`, `rain.m4a`, `fireplace.m4a`). `AudioEngine.load(theme:)` already reads from `Resources/Sounds`.
-- M23: Final polish — empty/error/loading state pass, accessibility audit (Dynamic Type, VoiceOver labels on every interactive element, contrast pass on gold), performance pass on long chats, snapshot tests for design tokens + ceremony key frames, App Store assets.
-- Backend follow-ups — RevenueCat → `entitlements` webhook edge function, weekly recap edge function (server-driven email/push), streak cron sweep (re-validate streak across timezone changes), badge-awarding edge function (Good Company, Regular, Palate Pro thresholds).
-- Storage rules + bucket setup (avatars private, cigars/drinks public read).
+**What landed**
+
+- `supabase/functions/revenuecat-webhook/index.ts` — verifies a shared-secret bearer token, mirrors RC events into `entitlements`, flips `profiles.is_premium` for cheap server reads. Maps event types (`INITIAL_PURCHASE` / `RENEWAL` / `PRODUCT_CHANGE` / `UNCANCELLATION` / `TRANSFER` → active; `CANCELLATION` / `EXPIRATION` / `BILLING_ISSUE` / `SUBSCRIPTION_PAUSED` → inactive) and stores the raw payload for forensic debugging.
+- `supabase/functions/weekly-recap/index.ts` — cron-driven (`0 18 * * 0`) sweep that aggregates the last 7 days of completed sessions per user, computes count + average minutes, and writes `app_config["recap.<user_id>"]` so the iOS client can read the recap without a new table.
+- `supabase/functions/award-badges/index.ts` — daily sweep that resolves badge IDs once and awards: `first_light` (≥1 ended session), `palate_pro` (≥10 fully-rated), `regular` (≥4 sessions in the last 7 days), `ember/flame/fire` (3/7/30-day streak via `usuals.streak_count`), `good_company` (pairs with ≥3 sessions in `connection_chemistry`). Idempotent via `upsert` on `(user_id, badge_id)`.
+- `supabase/migrations/0004_storage_buckets.sql` — creates `avatars` (private), `cigars`, `drinks` (public read) buckets and writes RLS policies on `storage.objects`: avatars readable by any authenticated user, writable only by their owner via `(storage.foldername(name))[1] = auth.uid()`; cigars/drinks public read; writes via service role only.
+
+**Decisions**
+
+- Wrote the recap into `app_config` rather than a new `weekly_recaps` table to keep surface area small for v1 — promote to a real table when retention/history matters.
+- Badges are upsert-only (never revoked). If we need decay (e.g. "Regular" should fall off after a quiet month) we can add a separate cleanup pass.
+- Avatar storage scopes object names with the user UUID as the first folder segment (`avatars/<uid>/avatar.jpg`) so RLS can match without a separate table lookup.
+
+---
+
+## 2026-05-06 — Polish: state views + a11y nudges + audio asset spec
+
+**What landed**
+
+- `DesignSystem/Components/StateViews.swift` — `FTLoadingView`, `FTEmptyView`, `FTErrorView` for consistent quiet placeholders (atmosphere-preserving copy; never bright).
+- A11y: `FTButton` declares `accessibilityLabel`/`accessibilityHint`/`isButton` traits explicitly; `RoomView` composer text field and send button get `accessibilityLabel` ("Message", "Send message"). The Lighting Ceremony's single-accessible-button collapse already exists from M12.
+- `TheFinalThirdTests/SnapshotTests/DesignTokenSnapshotTests.swift` — snapshots for `FTButton` gold/ghost styles, `EmberBadge` thresholds (0/1/7/30), `AvatarView` active/inactive/ghost. Guards against the most likely visual regression: gold drift.
+- `TheFinalThirdTests/UnitTests/RoomViewModelMessageReconcileTests.swift` — verifies optimistic insert + server echo dedupe by id, and failed sends keeping a row marked `.failed`.
+- `TheFinalThird/Resources/Sounds/.gitkeep` — folder marker carrying the audio asset specification.
+
+### Audio asset spec
+
+Required files in `TheFinalThird/Resources/Sounds/` (256 kbps AAC, seamless loops where applicable):
+
+| File | Length | Channels | Notes |
+|---|---|---|---|
+| `lounge_murmur.m4a` | ~120 s | stereo | faint crowd murmur, no intelligible voices |
+| `jazz.m4a`          | ~180 s | stereo | low-volume mellow jazz, instrumental only |
+| `lofi.m4a`          | ~120 s | stereo | mid-tempo lo-fi instrumental |
+| `rain.m4a`          | ~120 s | stereo | gentle rain on glass, no thunder |
+| `fireplace.m4a`     | ~120 s | stereo | soft fireplace crackle |
+| `match_strike.m4a`  | ~0.4 s | mono   | match strike, dry, transient |
+| `flame_whoosh.m4a`  | ~1.2 s | mono   | soft ignition whoosh, warm |
+| `ember_bed.m4a`     | ~3.0 s | mono   | low ember bed, fades on exit |
+
+`AudioEngine.load(theme:)` already reads ambient files by name. Lighting cues will be wired into `LightingCeremonyView.runChoreography` once the files are in.
+
+---
+
+## Open items (final polish)
+
+- Drop in licensed audio assets per the spec above; verify ambient loops are seamless across AirPods route changes.
+- Performance pass: chat with 1k messages on iPhone 11 (target ≤ 60 fps scroll). If `LazyVStack` shows jank, swap `ChatList`'s body for a `UIViewRepresentable` over `UITableView` behind the same view contract.
+- A11y deeper sweep: Dynamic Type at xxxLarge across every screen, VoiceOver navigation order, contrast on gold over `surface`/`surfaceHi` (currently ≥ 4.5:1 by inspection but unverified at xxxLarge weights).
+- Snapshot tests for Lighting Ceremony key frames (0.5 s / 1.5 s / 3.5 s) — needs a deterministic render path; today the flame is time-driven by `TimelineView`.
+- App Store assets: 6.7" + 6.1" + 5.5" screenshots, App Preview video of the Lighting Ceremony.
 
 ## Risks logged
 

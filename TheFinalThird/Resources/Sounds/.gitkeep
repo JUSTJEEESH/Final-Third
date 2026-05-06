@@ -1,0 +1,14 @@
+# Audio assets land here. See BUILD_LOG.md → "Audio asset spec" for the
+# required file names, formats, durations, and licensing requirements.
+#
+# Expected files (all 256kbps AAC, mono unless noted, looped seamlessly):
+#   lounge_murmur.m4a   ~120s   stereo, faint crowd murmur
+#   jazz.m4a            ~180s   stereo, low-volume mellow jazz, no spoken words
+#   lofi.m4a            ~120s   stereo, mid-tempo lo-fi instrumental
+#   rain.m4a            ~120s   stereo, gentle rain on glass, no thunder
+#   fireplace.m4a       ~120s   stereo, soft fireplace crackle
+#
+# Lighting Ceremony cues (mono, short, transient):
+#   match_strike.m4a    ~0.4s   match strike, dry
+#   flame_whoosh.m4a    ~1.2s   soft ignition whoosh, warm
+#   ember_bed.m4a       ~3.0s   low ember bed, fades on exit

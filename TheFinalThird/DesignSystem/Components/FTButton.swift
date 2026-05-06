@@ -35,6 +35,9 @@ struct FTButton: View {
             )
         }
         .disabled(isLoading)
+        .accessibilityLabel(title)
+        .accessibilityHint(isLoading ? "Working" : "")
+        .accessibilityAddTraits(.isButton)
     }
 
     private var background: some ShapeStyle {
