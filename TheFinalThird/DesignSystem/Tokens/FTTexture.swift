@@ -1,28 +1,65 @@
 import SwiftUI
+import UIKit
 
-/// Procedural surface textures rendered with Canvas. No external assets;
-/// each texture is built from gradients + deterministic noise (seeded
-/// pseudo-random via sin/cos), so it scales to any size and stays crisp.
+/// Surface textures used across the app. Each case has a procedural Canvas
+/// fallback AND looks for a matching photographic asset in
+/// `Assets.xcassets` named after `assetName`. If the asset exists it's
+/// preferred; otherwise the procedural fallback renders.
 ///
-/// Used at low opacity (8–15%) over the existing dark surface tokens so
-/// the texture is *felt* more than seen — adds warmth without losing the
-/// dark-only theme.
+/// Drop a high-resolution seamless texture into Assets.xcassets with the
+/// matching name and it'll automatically replace the procedural version
+/// app-wide. Recommended sources:
+///   - https://ambientcg.com  (CC0)
+///   - https://polyhaven.com/textures  (CC0)
+///   - https://www.cgbookcase.com  (CC0)
 enum FTTexture: Sendable {
     case leather       // dark warm grain — chairs, cards
     case tobaccoLeaf   // warmer brown with curving veins — accents
     case charredWood   // black-brown with vertical grain + warm cracks — tab bar floor
     case agedPaper     // tan grain with subtle freckling — journal surfaces
     case smoke         // faint drifting haze — atmospheric overlay
+    case goldLeaf      // metallic gold leaf foil — premium CTAs, ritual surfaces
+
+    /// Asset catalog name the texture system looks for. If a UIImage exists
+    /// for this name in Assets.xcassets, it's used in preference to the
+    /// procedural Canvas drawing.
+    var assetName: String {
+        switch self {
+        case .leather:     return "texture_leather"
+        case .tobaccoLeaf: return "texture_tobacco"
+        case .charredWood: return "texture_wood"
+        case .agedPaper:   return "texture_paper"
+        case .smoke:       return "texture_smoke"
+        case .goldLeaf:    return "texture_gold"
+        }
+    }
 }
 
-/// Renders a procedural texture as a Canvas. Use `.drawingGroup()` on the
-/// caller to bake to a Metal layer so it doesn't re-render on layout.
+/// Renders a texture. Prefers a photographic `UIImage` from
+/// `Assets.xcassets` when one exists; falls back to a procedural Canvas
+/// drawing otherwise. Use `.drawingGroup()` on the caller in tight scroll
+/// contexts to bake the procedural path to a Metal layer.
 struct TexturePanel: View {
     let texture: FTTexture
     var opacity: Double = 0.12
     var seed: Double = 1.0
 
     var body: some View {
+        Group {
+            if let asset = UIImage(named: texture.assetName) {
+                Image(uiImage: asset)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else {
+                proceduralCanvas
+            }
+        }
+        .opacity(opacity)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private var proceduralCanvas: some View {
         Canvas { context, size in
             switch texture {
             case .leather:     drawLeather(&context, size: size)
@@ -30,12 +67,10 @@ struct TexturePanel: View {
             case .charredWood: drawCharredWood(&context, size: size)
             case .agedPaper:   drawAgedPaper(&context, size: size)
             case .smoke:       drawSmoke(&context, size: size)
+            case .goldLeaf:    drawGoldLeaf(&context, size: size)
             }
         }
-        .opacity(opacity)
         .drawingGroup()
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
     }
 
     // MARK: Deterministic noise helpers
@@ -237,6 +272,36 @@ struct TexturePanel: View {
                 Path(ellipseIn: CGRect(x: x - radius, y: y - radius,
                                        width: radius * 2, height: radius * 2)),
                 with: .color(color.opacity(0.22))
+            )
+        }
+    }
+
+    // MARK: Gold leaf
+
+    private func drawGoldLeaf(_ ctx: inout GraphicsContext, size: CGSize) {
+        let rect = Path(CGRect(origin: .zero, size: size))
+        ctx.fill(rect, with: .linearGradient(
+            Gradient(stops: [
+                .init(color: Color(hex: 0xE3C26C), location: 0.00),
+                .init(color: Color(hex: 0xC9A24A), location: 0.45),
+                .init(color: Color(hex: 0x8E6F2F), location: 0.85),
+                .init(color: Color(hex: 0x644A1E), location: 1.00),
+            ]),
+            startPoint: CGPoint(x: size.width / 2, y: 0),
+            endPoint: CGPoint(x: size.width / 2, y: size.height)
+        ))
+        // Hammered foil specks
+        for i in 0 ..< 800 {
+            let s = Double(i) * 19.7
+            let x = r(s) * size.width
+            let y = r(s, 2) * size.height
+            let radius = 0.3 + r(s, 3) * 0.5
+            let bright = r(s, 4) > 0.5
+            ctx.fill(
+                Path(ellipseIn: CGRect(x: x - radius, y: y - radius,
+                                       width: radius * 2, height: radius * 2)),
+                with: .color((bright ? Color(hex: 0xFFE49C) : Color(hex: 0x4A3712))
+                                .opacity(0.20))
             )
         }
     }

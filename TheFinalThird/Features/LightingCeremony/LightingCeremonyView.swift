@@ -86,13 +86,15 @@ struct LightingCeremonyView: View {
                     .offset(x: cigarXOffset(width: geo.size.width),
                             y: centerY - geo.size.height / 2)
 
-                // Flame — sized to canvas, anchored under the cigar foot
+                // Flame — prefers a real-fire video clip from the bundle
+                // (e.g. flame_match.mp4); falls back to the procedural
+                // Canvas flame when no clip is present. Either way, sized
+                // to be anchored beneath the cigar foot.
                 if !reduceMotion {
-                    FlameCanvas(style: style, intensity: flameIntensity)
+                    flameView
                         .frame(width: 220, height: 260)
                         .offset(x: -geo.size.width * 0.08,
                                 y: centerY - geo.size.height / 2 - 70)
-                        .blendMode(.plusLighter)
                         .opacity(elapsed > 0.5 ? 1 : 0)
                 } else {
                     Image(systemName: "flame.fill")
@@ -109,6 +111,20 @@ struct LightingCeremonyView: View {
                             y: centerY - geo.size.height / 2 + toolYOffset)
                     .opacity(toolOpacity)
             }
+        }
+    }
+
+    /// If a `flame_<method>.mp4` (or `flame_default.mp4`) is bundled, use
+    /// the real-fire video. Otherwise the procedural Canvas flame.
+    @ViewBuilder
+    private var flameView: some View {
+        if Bundle.main.url(forResource: "flame_\(method.rawValue)", withExtension: "mp4") != nil
+            || Bundle.main.url(forResource: "flame_default", withExtension: "mp4") != nil
+        {
+            RealFlameLayer(method: method, intensity: flameIntensity)
+        } else {
+            FlameCanvas(style: style, intensity: flameIntensity)
+                .blendMode(.plusLighter)
         }
     }
 
