@@ -56,5 +56,6 @@ struct FTFloorBackground: View {
                 startPoint: .top, endPoint: .bottom
             )
         }
+        .clipped()
     }
 }

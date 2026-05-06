@@ -33,9 +33,12 @@ struct GoldSurface: View {
                 Rectangle()
                     .fill(.goldHighlight)
                     .blendMode(.screen)
-                    .allowsHitTesting(false)
             }
         }
+        // GoldSurface is always used as a non-interactive background; let
+        // taps pass to whatever Button or NavigationLink it's living
+        // inside.
+        .allowsHitTesting(false)
     }
 
     /// At minimum we want the color map. The other maps are optional but

@@ -67,6 +67,10 @@ private struct PBRSceneView: UIViewRepresentable {
         view.backgroundColor = .clear
         view.isOpaque = false
         view.allowsCameraControl = false
+        // Touches must pass through to the SwiftUI Button this view is
+        // hosted inside; otherwise SCNView eats the tap and the parent
+        // Button's action never fires.
+        view.isUserInteractionEnabled = false
         view.antialiasingMode = .multisampling4X
         view.preferredFramesPerSecond = 30
         view.scene = makeScene()
