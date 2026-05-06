@@ -6,15 +6,14 @@ set search_path = public;
 create or replace view connection_chemistry as
 with paired as (
   select
-    least(a.user_id, b.user_id) as user_a,
-    greatest(a.user_id, b.user_id) as user_b,
-    a.room_id,
-    a.started_at,
-    a.ended_at
+    a.user_id as user_a,
+    b.user_id as user_b,
+    extract(epoch from (least(a.ended_at, b.ended_at) - greatest(a.started_at, b.started_at))) / 60.0 as overlap_minutes,
+    greatest(a.ended_at, b.ended_at) as last_ended_at
   from sessions a
   join sessions b
     on a.room_id = b.room_id
-   and a.user_id <> b.user_id
+   and a.user_id < b.user_id
    and a.started_at < b.ended_at
    and b.started_at < a.ended_at
   where a.room_id is not null
@@ -25,13 +24,8 @@ select
   user_a,
   user_b,
   count(*) as sessions_together,
-  sum(
-    extract(
-      epoch from (least(ended_at, lead(ended_at) over ()) -
-                  greatest(started_at, lag(started_at) over ()))
-    )
-  )::int / 60 as minutes_together,
-  max(ended_at) as last_session_at
+  sum(overlap_minutes)::int as minutes_together,
+  max(last_ended_at) as last_session_at
 from paired
 group by user_a, user_b;
 
