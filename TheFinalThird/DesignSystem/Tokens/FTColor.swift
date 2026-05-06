@@ -21,6 +21,7 @@ enum FTColor {
     static let gold       = Color(hex: 0xC9A24A)         // primary gold
     static let goldHi     = Color(hex: 0xE3C26C)         // bloom
     static let goldLo     = Color(hex: 0x8E6F2F)         // pressed / muted
+    static let goldDeep   = Color(hex: 0x644A1E)         // shadow
     static let goldGlow   = Color(hex: 0xFFD56B).opacity(0.45)
 
     // MARK: Ember (lighting / streak)
@@ -36,6 +37,12 @@ enum FTColor {
     // MARK: Overlays
     static let scrim      = Color.black.opacity(0.6)
     static let vignette   = Color.black.opacity(0.85)
+
+    // MARK: Wood / leather accents (used by texture overlays + tab bar)
+    static let leatherWarm   = Color(hex: 0x2C1B12)
+    static let leatherDeep   = Color(hex: 0x1A100A)
+    static let charredWood   = Color(hex: 0x0D0807)
+    static let tobaccoBrown  = Color(hex: 0x4A2F18)
 }
 
 extension Color {
@@ -44,5 +51,33 @@ extension Color {
         let g = Double((hex >> 8) & 0xFF) / 255
         let b = Double(hex & 0xFF) / 255
         self.init(.sRGB, red: r, green: g, blue: b, opacity: alpha)
+    }
+}
+
+// MARK: - Gold leaf shape style
+
+/// A multi-stop gradient that approximates light hitting gold leaf.
+/// Use anywhere a flat gold fill would feel cheap — primary CTAs, the
+/// "Light up" card, ritual surfaces.
+extension ShapeStyle where Self == LinearGradient {
+    static var goldLeaf: LinearGradient {
+        LinearGradient(
+            stops: [
+                .init(color: FTColor.goldHi,   location: 0.00),
+                .init(color: FTColor.gold,     location: 0.45),
+                .init(color: FTColor.goldLo,   location: 0.85),
+                .init(color: FTColor.goldDeep, location: 1.00),
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    /// Brighter highlight band — for the top edge of CTAs.
+    static var goldHighlight: LinearGradient {
+        LinearGradient(
+            colors: [.white.opacity(0.32), .clear],
+            startPoint: .top, endPoint: .center
+        )
     }
 }

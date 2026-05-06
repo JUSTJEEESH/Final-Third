@@ -56,13 +56,26 @@ private struct FTTabBar: View {
                     HapticsService.shared.tap()
                     selection = tab
                 } label: {
-                    VStack(spacing: 2) {
+                    VStack(spacing: 4) {
                         Image(systemName: tab.icon)
                             .font(.system(size: 20, weight: .medium))
-                        Text(tab.label).font(FTType.caption(10, weight: .medium))
+                            .foregroundStyle(
+                                selection == tab
+                                ? AnyShapeStyle(.goldLeaf)
+                                : AnyShapeStyle(FTColor.inkMuted)
+                            )
+                            .shadow(
+                                color: selection == tab
+                                    ? FTColor.goldGlow
+                                    : .clear,
+                                radius: 8, x: 0, y: 0
+                            )
+                        Text(tab.label)
+                            .font(FTType.caption(10, weight: .medium))
+                            .foregroundStyle(selection == tab ? FTColor.gold : FTColor.inkMuted)
+                            .tracking(selection == tab ? 0.6 : 0)
                     }
                     .frame(maxWidth: .infinity)
-                    .foregroundStyle(selection == tab ? FTColor.gold : FTColor.inkMuted)
                     .padding(.vertical, FTSpace.sm)
                 }
                 .buttonStyle(.plain)
@@ -72,7 +85,9 @@ private struct FTTabBar: View {
         .padding(.horizontal, FTSpace.md)
         .padding(.top, FTSpace.sm)
         .padding(.bottom, FTSpace.lg)
-        .background(FTColor.surfaceLo)
-        .overlay(alignment: .top) { GoldDivider().opacity(0.4) }
+        .background(FTFloorBackground())
+        .overlay(alignment: .top) {
+            GoldDivider().opacity(0.55)
+        }
     }
 }

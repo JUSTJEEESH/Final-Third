@@ -26,13 +26,14 @@ struct FTButton: View {
             .padding(.horizontal, FTSpace.lg)
             .padding(.vertical, FTSpace.md)
             .frame(maxWidth: .infinity, minHeight: 52)
-            .background(background)
+            .background(backgroundView)
             .foregroundStyle(foreground)
             .clipShape(RoundedRectangle(cornerRadius: FTRadius.lg, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: FTRadius.lg, style: .continuous)
                     .stroke(borderColor, lineWidth: FTStroke.thin)
             )
+            .shadow(color: shadowColor, radius: 8, x: 0, y: 4)
         }
         .disabled(isLoading)
         .accessibilityLabel(title)
@@ -40,14 +41,30 @@ struct FTButton: View {
         .accessibilityAddTraits(.isButton)
     }
 
-    private var background: some ShapeStyle {
+    @ViewBuilder
+    private var backgroundView: some View {
         switch style {
-        case .gold:   return AnyShapeStyle(LinearGradient(colors: [FTColor.gold, FTColor.goldLo],
-                                                          startPoint: .top, endPoint: .bottom))
-        case .ghost:  return AnyShapeStyle(FTColor.surface)
-        case .ember:  return AnyShapeStyle(LinearGradient(colors: [FTColor.emberHot, FTColor.ember],
-                                                          startPoint: .top, endPoint: .bottom))
-        case .danger: return AnyShapeStyle(FTColor.danger)
+        case .gold:
+            ZStack {
+                Rectangle().fill(.goldLeaf)
+                Rectangle().fill(.goldHighlight).blendMode(.screen)
+            }
+        case .ghost:
+            ZStack {
+                FTColor.surface
+                TexturePanel(texture: .leather, opacity: 0.08)
+            }
+        case .ember:
+            LinearGradient(
+                stops: [
+                    .init(color: FTColor.emberCore, location: 0),
+                    .init(color: FTColor.emberHot,  location: 0.4),
+                    .init(color: FTColor.ember,     location: 1.0),
+                ],
+                startPoint: .top, endPoint: .bottom
+            )
+        case .danger:
+            FTColor.danger
         }
     }
 
@@ -62,7 +79,17 @@ struct FTButton: View {
     private var borderColor: Color {
         switch style {
         case .ghost: return FTColor.divider
+        case .gold:  return FTColor.goldDeep.opacity(0.7)
         default:     return .clear
+        }
+    }
+
+    private var shadowColor: Color {
+        switch style {
+        case .gold:   return FTColor.goldDeep.opacity(0.45)
+        case .ember:  return FTColor.ember.opacity(0.45)
+        case .ghost:  return .black.opacity(0.25)
+        case .danger: return FTColor.danger.opacity(0.4)
         }
     }
 }

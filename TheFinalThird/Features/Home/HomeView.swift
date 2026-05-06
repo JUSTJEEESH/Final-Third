@@ -71,23 +71,33 @@ struct HomeView: View {
                         startPoint: .top, endPoint: .bottom
                     ))
                     .font(.system(size: 22))
+                    .shadow(color: FTColor.ember.opacity(0.6), radius: 10, x: 0, y: 0)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Light up").font(FTType.heading(18, weight: .semibold))
                     Text("Choose your cigar and step in.")
-                        .font(FTType.caption(11)).foregroundStyle(FTColor.inkInverse.opacity(0.65))
+                        .font(FTType.caption(11))
+                        .foregroundStyle(FTColor.inkInverse.opacity(0.7))
                 }
                 Spacer()
                 Image(systemName: "arrow.right")
+                    .font(.system(size: 14, weight: .semibold))
             }
             .foregroundStyle(FTColor.inkInverse)
             .padding(.horizontal, FTSpace.lg)
             .padding(.vertical, FTSpace.md)
             .frame(maxWidth: .infinity, minHeight: 64)
-            .background(LinearGradient(
-                colors: [FTColor.gold, FTColor.goldLo],
-                startPoint: .top, endPoint: .bottom
-            ))
+            .background(
+                ZStack {
+                    Rectangle().fill(.goldLeaf)
+                    Rectangle().fill(.goldHighlight).blendMode(.screen)
+                }
+            )
             .clipShape(RoundedRectangle(cornerRadius: FTRadius.lg, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: FTRadius.lg, style: .continuous)
+                    .stroke(FTColor.goldDeep.opacity(0.7), lineWidth: 0.5)
+            )
+            .shadow(color: FTColor.goldDeep.opacity(0.55), radius: 14, x: 0, y: 8)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Light up — start a session")
