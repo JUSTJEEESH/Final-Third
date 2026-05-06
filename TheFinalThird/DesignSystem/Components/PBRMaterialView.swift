@@ -27,27 +27,40 @@ import SwiftUI
 /// PBR packs from https://ambientcg.com or https://polyhaven.com/textures
 /// arrive with the maps named after their type. Rename or duplicate them
 /// to fit the convention above when adding to the catalog.
-struct PBRMaterialView: UIViewRepresentable {
-    /// Asset prefix. e.g. "gold" -> loads `gold_color`, `gold_normal`, etc.
+struct PBRMaterialView: View {
     let set: String
-
-    /// Tint applied on top of the color map (via material.multiply). Use
-    /// to bias gold toward your goldHi/goldLo tokens, leather toward
-    /// warmth, etc. Default is white = no tint.
     var tint: UIColor = .white
-
-    /// Direction of the key light, in radians. Default is upper-left to
-    /// match how light falls in the rest of the app.
-    var lightAzimuth: Float = -0.6  // x rotation
-    var lightElevation: Float = -0.4 // y rotation
-
-    /// Overall scene exposure. 1.0 is the default; raise to 1.4–1.8 for
-    /// gold/metal surfaces, lower to ~0.8 for matte leather.
+    var lightAzimuth: Float = -0.6
+    var lightElevation: Float = -0.4
     var exposure: CGFloat = 1.0
-
-    /// How tightly to crop the plane. 1.0 fills the view exactly; <1.0
-    /// shows more of the texture (zoom out) and >1.0 zooms in.
     var coverage: CGFloat = 1.0
+
+    var body: some View {
+        GeometryReader { geo in
+            // Aspect = width / height. Scene plane gets sized to match so
+            // wide CTAs aren't shown as a centered square.
+            let aspect = max(geo.size.width / max(geo.size.height, 1), 0.0001)
+            PBRSceneView(
+                set: set,
+                tint: tint,
+                lightAzimuth: lightAzimuth,
+                lightElevation: lightElevation,
+                exposure: exposure,
+                coverage: coverage,
+                aspect: CGFloat(aspect)
+            )
+        }
+    }
+}
+
+private struct PBRSceneView: UIViewRepresentable {
+    let set: String
+    let tint: UIColor
+    let lightAzimuth: Float
+    let lightElevation: Float
+    let exposure: CGFloat
+    let coverage: CGFloat
+    let aspect: CGFloat
 
     func makeUIView(context: Context) -> SCNView {
         let view = SCNView()
@@ -61,30 +74,29 @@ struct PBRMaterialView: UIViewRepresentable {
     }
 
     func updateUIView(_ scnView: SCNView, context: Context) {
-        // Re-apply when bindings change. Cheap because we just swap one node.
         scnView.scene = makeScene()
     }
-
-    // MARK: Scene construction
 
     private func makeScene() -> SCNScene {
         let scene = SCNScene()
         scene.background.contents = UIColor.clear
 
-        // Plane node — sized 1x1 in scene units, camera placed for full coverage.
-        let plane = SCNPlane(width: 1, height: 1)
+        // Aspect-correct plane: 1 unit tall, `aspect` units wide. Camera
+        // position is derived so the plane fills the SwiftUI view at
+        // coverage=1, regardless of the parent's actual aspect ratio.
+        let planeWidth = max(aspect, 0.0001)
+        let plane = SCNPlane(width: planeWidth, height: 1)
         plane.firstMaterial = makeMaterial()
         let planeNode = SCNNode(geometry: plane)
         scene.rootNode.addChildNode(planeNode)
 
-        // Camera positioned to fill the view at the requested coverage.
         let camera = SCNCamera()
         camera.fieldOfView = 60
         camera.zNear = 0.05
         camera.zFar = 5
         let cameraNode = SCNNode()
         cameraNode.camera = camera
-        // Distance derived from FOV so the plane fills the frame at coverage = 1.
+        // 60° vertical FOV: distance = 0.5 / tan(30°) ≈ 0.866 fills 1-unit-tall plane.
         let halfFov = 60.0 * .pi / 180 / 2
         let dist: Float = Float(0.5 / tan(halfFov)) / Float(coverage)
         cameraNode.position = SCNVector3(0, 0, dist)

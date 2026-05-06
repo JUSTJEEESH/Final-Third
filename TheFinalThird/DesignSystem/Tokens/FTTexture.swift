@@ -50,6 +50,7 @@ struct TexturePanel: View {
                 Image(uiImage: asset)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
+                    .clipped()
             } else {
                 proceduralCanvas
             }
