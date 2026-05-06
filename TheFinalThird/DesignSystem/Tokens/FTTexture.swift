@@ -120,7 +120,8 @@ struct TexturePanel: View {
                 Color(hex: 0x2D1B0E),
                 Color(hex: 0x3B2614),
             ]),
-            startPoint: .top, endPoint: .bottom
+            startPoint: CGPoint(x: size.width / 2, y: 0),
+            endPoint: CGPoint(x: size.width / 2, y: size.height)
         ))
 
         // Central spine + branching veins — long curving strokes from a midline.
@@ -169,7 +170,8 @@ struct TexturePanel: View {
                 Color(hex: 0x16100C),
                 Color(hex: 0x080503),
             ]),
-            startPoint: .top, endPoint: .bottom
+            startPoint: CGPoint(x: size.width / 2, y: 0),
+            endPoint: CGPoint(x: size.width / 2, y: size.height)
         ))
 
         // Vertical grain — many parallel lines with varied opacity & slight wobble.
@@ -206,7 +208,8 @@ struct TexturePanel: View {
                 .init(color: .clear, location: 0.85),
                 .init(color: .black.opacity(0.55), location: 1.0),
             ]),
-            startPoint: .top, endPoint: .bottom
+            startPoint: CGPoint(x: size.width / 2, y: 0),
+            endPoint: CGPoint(x: size.width / 2, y: size.height)
         ))
     }
 
@@ -220,7 +223,8 @@ struct TexturePanel: View {
                 Color(hex: 0x261C13),
                 Color(hex: 0x3A2D20),
             ]),
-            startPoint: .topLeading, endPoint: .bottomTrailing
+            startPoint: .zero,
+            endPoint: CGPoint(x: size.width, y: size.height)
         ))
         for i in 0 ..< 1500 {
             let s = Double(i) * 9.71
