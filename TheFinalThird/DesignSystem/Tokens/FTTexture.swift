@@ -47,10 +47,15 @@ struct TexturePanel: View {
     var body: some View {
         Group {
             if let asset = UIImage(named: texture.assetName) {
+                // Simple resizable stretch — no aspect-fill, no clipping
+                // games. Aspect-fill in SwiftUI sometimes leaks through
+                // its parent's height proposal, which was making the wood
+                // floor overflow above the tab bar. For organic textures
+                // (wood grain, leather, tobacco fiber, paper) mild
+                // horizontal/vertical stretch is invisible to the eye.
                 Image(uiImage: asset)
                     .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .clipped()
+                    .interpolation(.high)
             } else {
                 proceduralCanvas
             }
