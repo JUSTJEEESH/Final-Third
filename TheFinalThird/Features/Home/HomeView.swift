@@ -86,12 +86,7 @@ struct HomeView: View {
             .padding(.horizontal, FTSpace.lg)
             .padding(.vertical, FTSpace.md)
             .frame(maxWidth: .infinity, minHeight: 64)
-            .background(
-                ZStack {
-                    Rectangle().fill(.goldLeaf)
-                    Rectangle().fill(.goldHighlight).blendMode(.screen)
-                }
-            )
+            .background(GoldSurface())
             .clipShape(RoundedRectangle(cornerRadius: FTRadius.lg, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: FTRadius.lg, style: .continuous)
