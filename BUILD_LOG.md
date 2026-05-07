@@ -627,6 +627,49 @@ Light up like before. After the ceremony's flame settles, a leather-and-gold she
 
 ---
 
+## 2026-05-07 — Rooms × Sessions, Step 4: In-room session UX
+
+The two halves finally meet. You can light up *from* a room (Path B), and rooms now *show* who's lit up next to their avatars. Inside a session, the room you're sitting at is part of your session identity.
+
+**What landed**
+
+- `SessionViewModel.init` now takes `room: Room?` instead of `roomID: UUID?`. The Room is stored in `chosenRoom` from construction so Path B carries it through to the active screen.
+- `SessionState.beginFlow(userID:room:isGhost:analytics:)` mirrors the same shape. Path A (Home Light Up) passes `room: nil`. Path B (Room Light Up Here) passes the actual `Room`.
+- `SessionViewModel.ceremonyCompleted()` branches: if `chosenRoom != nil` (Path B) we go straight to `startSession()` and skip the doorway sheet — the user already chose where to sit before lighting. If `chosenRoom == nil` (Path A), the picker fires as before.
+
+- `RoomView` got a real header story:
+  - Title row now shows "🔥 N lit up" gold subline whenever there are active smokers.
+  - **`LightUpHereCTA`** sits below the header. Three states:
+    - **Available** — gold "Light up here" button. Mirrors Home's button vocabulary so the action reads identically across surfaces. Tap → `beginFlow(room: vm.room)` + `expand()`. The doorway picker is skipped because the room is preselected. Ceremony plays full-screen.
+    - **Active here** — leather/gold tile showing "YOU'RE LIT — Padrón 1964" with an "Open" button → `expand()` to bring the focus card back.
+    - **Active elsewhere** — quiet line: "You're lit at \(other room name)" or "You're lit solo right now." with an "Open" button. Step 6 will turn this into "Move over here."
+
+- `RoomViewModel`:
+  - New `smokersByUser: [UUID: LiveNowSummary.Smoker]` keyed by user ID. Filled from `room_live_now` on `enter()` and refreshed by a 30-second `smokerPollTask`. Cancelled on `leave()`.
+  - Reuses the same RPC as the doorway sheet — single source of truth for "who's burning where".
+
+- `PresenceRail` rewrite:
+  - Smokers float to the front of the rail (most magnetic first).
+  - Smoker chips render as a Capsule with a gold-haloed avatar + name + cigar + minutes-in: *"Marcus · Padrón 1964 · 22 min"*. Quiet glow.
+  - Non-smokers render as today's plain `AvatarView`.
+
+- `ActiveSessionView` shows "Sitting at \(room name)" beneath the IN SESSION eyebrow when the session has a chosen room. Tappable target reserved for Step 6.
+
+**Why this matters**
+
+- Path B is a real entry point now. You can browse the lounge, find a room you like, and *then* commit to the ritual — not just light up cold from Home.
+- The presence rail finally answers the question every cigar smoker walking into a lounge asks: *what's everyone smoking?* Names + cigars + minutes-in turns a room from "who's online" into "who's actually present."
+- The session knows where it lives, the room knows who's lit. Step 5 (system events) can now fire arrival messages because both sides are wired.
+
+**Visible to user**
+
+- Open any room → "Light up here" gold button appears at the top. Tap it → ceremony plays, no picker, you land in the same room with your cigar lit.
+- Anyone with an active session shows their cigar + minutes next to their name in the presence rail.
+- During an active session, the screen now shows "Sitting at The Late Shift" (or wherever you chose).
+- Open a different room while a session is running → the CTA shows "You're lit at The Late Shift" with an Open shortcut.
+
+---
+
 ## Open items (final polish)
 
 - Drop in licensed audio assets per the spec above; verify ambient loops are seamless across AirPods route changes.

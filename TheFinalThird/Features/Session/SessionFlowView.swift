@@ -380,11 +380,25 @@ private struct ActiveSessionView: View {
             .zIndex(1)
 
             VStack(spacing: FTSpace.lg) {
-                Text("IN SESSION")
-                    .font(FTType.caption(11, weight: .semibold))
-                    .tracking(2.4)
-                    .foregroundStyle(FTColor.gold)
-                    .padding(.top, FTSpace.xxl)
+                VStack(spacing: 4) {
+                    Text("IN SESSION")
+                        .font(FTType.caption(11, weight: .semibold))
+                        .tracking(2.4)
+                        .foregroundStyle(FTColor.gold)
+                    if let room = vm.chosenRoom {
+                        // "Sitting at" — quietly tells the user where
+                        // they are. Tappable later (Step 6) for a
+                        // mid-session room switch.
+                        HStack(spacing: 4) {
+                            Image(systemName: "person.2.fill")
+                                .font(.system(size: 10))
+                            Text("Sitting at \(room.name)")
+                                .font(FTType.caption(11))
+                        }
+                        .foregroundStyle(FTColor.inkMuted)
+                    }
+                }
+                .padding(.top, FTSpace.xxl)
 
                 // Cigar identity — display title, subtle vitola.
                 if let cigar = vm.cigar {

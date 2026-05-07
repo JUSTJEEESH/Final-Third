@@ -48,12 +48,13 @@ final class SessionViewModel {
     private var tickerTask: Task<Void, Never>?
 
     init(
-        userID: UUID, roomID: UUID?, isGhost: Bool,
+        userID: UUID, room: Room?, isGhost: Bool,
         sessions: SessionRepository = LiveSessionRepository(),
         analytics: AnalyticsService
     ) {
         self.userID = userID
-        self.roomID = roomID
+        self.roomID = room?.id
+        self.chosenRoom = room
         self.isGhost = isGhost
         self.sessions = sessions
         self.analytics = analytics
@@ -79,10 +80,16 @@ final class SessionViewModel {
         phase = .lighting
     }
 
-    /// Called from the LightingCeremonyView's onComplete handler
-    /// instead of going straight to .active. Opens the doorway sheet.
+    /// Called from the LightingCeremonyView's onComplete handler.
+    /// Path A (no preselected room) → doorway sheet. Path B (lit up
+    /// from inside a room — `chosenRoom` already set) skips the
+    /// picker and goes straight to the burn.
     func ceremonyCompleted() {
-        phase = .choosingRoom
+        if chosenRoom != nil {
+            Task { await startSession() }
+        } else {
+            phase = .choosingRoom
+        }
     }
 
     /// Resolves the doorway sheet. Pass `nil` for "Stay solo" — the

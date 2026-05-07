@@ -84,7 +84,7 @@ struct HomeView: View {
             {
                 container.session.beginFlow(
                     userID: userID,
-                    roomID: nil,
+                    room: nil,
                     isGhost: vm?.profile?.ghostModeDefault ?? false,
                     analytics: container.analytics
                 )

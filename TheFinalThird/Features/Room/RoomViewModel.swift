@@ -12,6 +12,13 @@ final class RoomViewModel {
     var draft = ""
     var error: String?
 
+    /// Live smokers in this room, keyed by `userID`. Refreshed on
+    /// enter and on a 30-second loop so the cigar chips next to
+    /// avatars stay current. Sources from the same `room_live_now`
+    /// RPC the doorway sheet uses.
+    var smokersByUser: [UUID: LiveNowSummary.Smoker] = [:]
+    private var smokerPollTask: Task<Void, Never>?
+
     // Voice + ambient (M18)
     var voiceJoined = false
     var ambientTheme: AudioTheme?
@@ -56,6 +63,8 @@ final class RoomViewModel {
             earliestLoaded = messages.first?.createdAt
             analytics.track(.roomJoined(roomID: roomID, ghost: asGhost))
             startListening()
+            await refreshSmokers()
+            startSmokerPolling()
 
             // Ambient mix follows the room's saved theme.
             ambientTheme = room?.audioTheme
@@ -67,11 +76,35 @@ final class RoomViewModel {
 
     func leave() async {
         streamTask?.cancel()
+        smokerPollTask?.cancel()
         await voice.leave()
         audio.setTheme(nil)
         voiceJoined = false
         try? await rooms.leave(roomID: roomID)
         analytics.track(.roomLeft(roomID: roomID))
+    }
+
+    // MARK: Smokers
+
+    /// One-shot refresh of who's currently lit up in this room. The
+    /// RPC filters out ghost sessions server-side.
+    func refreshSmokers() async {
+        let map = (try? await rooms.liveNow(roomIDs: [roomID])) ?? [:]
+        let summary = map[roomID]
+        var byUser: [UUID: LiveNowSummary.Smoker] = [:]
+        for s in summary?.smokers ?? [] { byUser[s.userID] = s }
+        smokersByUser = byUser
+    }
+
+    private func startSmokerPolling() {
+        smokerPollTask?.cancel()
+        smokerPollTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(30))
+                if Task.isCancelled { break }
+                await self?.refreshSmokers()
+            }
+        }
     }
 
     // MARK: Voice

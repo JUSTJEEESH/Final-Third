@@ -75,7 +75,8 @@ struct RoomView: View {
     private func content(vm: RoomViewModel) -> some View {
         VStack(spacing: 0) {
             header(vm: vm)
-            PresenceRail(presence: vm.presence)
+            LightUpHereCTA(vm: vm)
+            PresenceRail(presence: vm.presence, smokers: vm.smokersByUser)
                 .padding(.vertical, FTSpace.sm)
             Divider().background(FTColor.divider)
             ChatList(messages: vm.messages, onScrollTop: { Task { await vm.loadOlder() } })
@@ -85,28 +86,271 @@ struct RoomView: View {
     }
 
     private func header(vm: RoomViewModel) -> some View {
-        VStack(spacing: 2) {
+        VStack(spacing: 4) {
             Text(vm.room?.name ?? "Lounge").font(FTType.heading(18, weight: .semibold))
-            if let theme = vm.room?.theme {
-                Text(theme).font(FTType.caption(11)).foregroundStyle(FTColor.inkMuted)
+            HStack(spacing: 6) {
+                if !vm.smokersByUser.isEmpty {
+                    Image(systemName: "flame.fill")
+                        .foregroundStyle(FTColor.gold)
+                        .font(.system(size: 10))
+                    Text("\(vm.smokersByUser.count) lit up")
+                        .font(FTType.caption(11, weight: .semibold))
+                        .foregroundStyle(FTColor.gold)
+                        .tracking(0.8)
+                    if vm.room?.theme != nil { Text("·").foregroundStyle(FTColor.inkFaint) }
+                }
+                if let theme = vm.room?.theme {
+                    Text(theme).font(FTType.caption(11)).foregroundStyle(FTColor.inkMuted)
+                }
             }
         }
         .padding(.horizontal, FTSpace.lg).padding(.top, FTSpace.md)
     }
 }
 
+// MARK: - Light Up Here CTA
+
+/// Path B entry — the user is in the room, taps "Light up here", and
+/// the ceremony plays full-screen. When they emerge, they're lit and
+/// already seated. The CTA changes to a focus tile when they have an
+/// active session in this room, or "You're lit elsewhere" when in
+/// another room.
+private struct LightUpHereCTA: View {
+    @Environment(AppContainer.self) private var container
+    @Bindable var vm: RoomViewModel
+
+    var body: some View {
+        Group {
+            switch state {
+            case .available:
+                lightUpButton
+            case .activeHere:
+                inSessionTile
+            case .activeElsewhere(let otherRoomName):
+                elsewhereTile(otherRoomName: otherRoomName)
+            }
+        }
+        .padding(.horizontal, FTSpace.lg)
+        .padding(.top, FTSpace.sm)
+    }
+
+    private enum State {
+        case available
+        case activeHere
+        case activeElsewhere(roomName: String)
+    }
+
+    private var state: State {
+        guard container.session.isInFlow else { return .available }
+        if container.session.activeRoomID == vm.roomID {
+            return .activeHere
+        }
+        // Session is in some other room (or solo). For Step 4 we show
+        // a generic "elsewhere" tile — Step 6 will add "Move over here".
+        if let otherID = container.session.activeRoomID, otherID != vm.roomID {
+            return .activeElsewhere(roomName: container.session.current?.chosenRoom?.name ?? "another room")
+        }
+        return .activeElsewhere(roomName: "solo")
+    }
+
+    private var lightUpButton: some View {
+        Button {
+            HapticsService.shared.tap()
+            guard case .signedIn(let userID) = container.auth.state else { return }
+            container.session.beginFlow(
+                userID: userID,
+                room: vm.room,
+                isGhost: vm.isGhost,
+                analytics: container.analytics
+            )
+            container.session.expand()
+        } label: {
+            HStack(spacing: FTSpace.md) {
+                Image(systemName: "flame.fill")
+                    .foregroundStyle(LinearGradient(
+                        colors: [FTColor.emberCore, FTColor.emberHot, FTColor.ember],
+                        startPoint: .top, endPoint: .bottom
+                    ))
+                    .font(.system(size: 16))
+                    .shadow(color: FTColor.ember.opacity(0.5), radius: 6)
+                Text("Light up here")
+                    .font(FTType.body(14, weight: .semibold))
+                    .foregroundStyle(FTColor.inkInverse)
+                Spacer()
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(FTColor.inkInverse)
+            }
+            .padding(.horizontal, FTSpace.lg)
+            .padding(.vertical, FTSpace.sm + 2)
+            .background(GoldSurface())
+            .clipShape(RoundedRectangle(cornerRadius: FTRadius.md, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: FTRadius.md, style: .continuous)
+                    .stroke(FTColor.goldDeep.opacity(0.6), lineWidth: 0.5)
+            )
+            .shadow(color: FTColor.goldDeep.opacity(0.45), radius: 10, y: 4)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var inSessionTile: some View {
+        Button {
+            HapticsService.shared.tap()
+            container.session.expand()
+        } label: {
+            HStack(spacing: FTSpace.md) {
+                EmberDot()
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("YOU'RE LIT")
+                        .font(FTType.caption(10, weight: .semibold))
+                        .tracking(1.4)
+                        .foregroundStyle(FTColor.gold)
+                    if let cigar = container.session.activeCigar {
+                        Text("\(cigar.brand) \(cigar.line)")
+                            .font(FTType.body(13, weight: .medium))
+                            .foregroundStyle(FTColor.ink)
+                            .lineLimit(1)
+                    }
+                }
+                Spacer()
+                Text("Open")
+                    .font(FTType.caption(11, weight: .semibold))
+                    .foregroundStyle(FTColor.gold)
+            }
+            .padding(.horizontal, FTSpace.lg)
+            .padding(.vertical, FTSpace.sm)
+            .background(FTColor.surfaceHi)
+            .clipShape(RoundedRectangle(cornerRadius: FTRadius.md, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: FTRadius.md, style: .continuous)
+                    .stroke(FTColor.gold.opacity(0.45), lineWidth: 0.7)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func elsewhereTile(otherRoomName: String) -> some View {
+        HStack(spacing: FTSpace.sm) {
+            Image(systemName: "moon.stars.fill")
+                .foregroundStyle(FTColor.inkFaint)
+                .font(.system(size: 12))
+            Text(otherRoomName == "solo"
+                 ? "You're lit solo right now."
+                 : "You're lit at \(otherRoomName).")
+                .font(FTType.caption(12))
+                .foregroundStyle(FTColor.inkMuted)
+            Spacer()
+            Button("Open") {
+                HapticsService.shared.tap()
+                container.session.expand()
+            }
+            .font(FTType.caption(12, weight: .semibold))
+            .foregroundStyle(FTColor.gold)
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, FTSpace.lg)
+        .padding(.vertical, FTSpace.sm)
+        .background(FTColor.surface)
+        .clipShape(RoundedRectangle(cornerRadius: FTRadius.md, style: .continuous))
+    }
+}
+
+private struct EmberDot: View {
+    @State private var pulse = false
+    var body: some View {
+        Circle()
+            .fill(LinearGradient(
+                colors: [FTColor.emberCore, FTColor.emberHot, FTColor.ember],
+                startPoint: .top, endPoint: .bottom
+            ))
+            .frame(width: 9, height: 9)
+            .shadow(color: FTColor.ember.opacity(pulse ? 0.85 : 0.5), radius: pulse ? 5 : 3)
+            .animation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true), value: pulse)
+            .onAppear { pulse = true }
+            .accessibilityHidden(true)
+    }
+}
+
 private struct PresenceRail: View {
     let presence: [RoomPresence]
+    /// Live smokers (from `room_live_now`) keyed by userID. Avatars
+    /// of smokers get a gold halo + the smoker's cigar shows on tap
+    /// inline. Non-smokers render as today.
+    let smokers: [UUID: LiveNowSummary.Smoker]
+
+    /// Smokers float to the front of the rail so the eye lands on
+    /// active humans first — same magnetic principle as the doorway
+    /// sheet's "Lit up right now" section.
+    private var sortedPresence: [RoomPresence] {
+        presence.sorted { lhs, rhs in
+            let lhsLit = smokers[lhs.userID] != nil
+            let rhsLit = smokers[rhs.userID] != nil
+            if lhsLit != rhsLit { return lhsLit }
+            return lhs.joinedAt < rhs.joinedAt
+        }
+    }
+
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: FTSpace.xs) {
-                ForEach(presence, id: \.userID) { p in
-                    AvatarView(url: p.avatarURL,
-                               initials: String(p.displayName.prefix(2)).uppercased(),
-                               size: 32, isGhost: p.isGhost, isActive: !p.isGhost)
+            HStack(spacing: FTSpace.sm) {
+                ForEach(sortedPresence, id: \.userID) { p in
+                    PresenceChip(presence: p, smoker: smokers[p.userID])
                 }
             }
             .padding(.horizontal, FTSpace.lg)
+        }
+    }
+}
+
+private struct PresenceChip: View {
+    let presence: RoomPresence
+    let smoker: LiveNowSummary.Smoker?
+
+    var body: some View {
+        if let smoker {
+            HStack(spacing: 8) {
+                ZStack {
+                    AvatarView(
+                        url: presence.avatarURL,
+                        initials: String(presence.displayName.prefix(2)).uppercased(),
+                        size: 30, isGhost: false, isActive: true
+                    )
+                    Circle()
+                        .stroke(FTColor.gold.opacity(0.8), lineWidth: 1.2)
+                        .frame(width: 32, height: 32)
+                        .shadow(color: FTColor.ember.opacity(0.5), radius: 4)
+                }
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(presence.displayName)
+                        .font(FTType.caption(11, weight: .semibold))
+                        .foregroundStyle(FTColor.ink)
+                        .lineLimit(1)
+                    if let cigar = smoker.cigarDisplay {
+                        Text("\(cigar) · \(smoker.minutesIn) min")
+                            .font(FTType.caption(10))
+                            .foregroundStyle(FTColor.gold.opacity(0.85))
+                            .lineLimit(1)
+                    } else {
+                        Text("\(smoker.minutesIn) min in")
+                            .font(FTType.caption(10))
+                            .foregroundStyle(FTColor.gold.opacity(0.85))
+                    }
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(FTColor.surfaceHi)
+            .clipShape(Capsule())
+            .overlay(
+                Capsule().stroke(FTColor.gold.opacity(0.35), lineWidth: 0.5)
+            )
+        } else {
+            AvatarView(
+                url: presence.avatarURL,
+                initials: String(presence.displayName.prefix(2)).uppercased(),
+                size: 32, isGhost: presence.isGhost, isActive: !presence.isGhost
+            )
         }
     }
 }

@@ -57,16 +57,20 @@ final class SessionState {
     /// Begin a new session flow. Idempotent — if a flow is already in
     /// progress, the existing one is preserved so a stray "Light up"
     /// tap from a different surface doesn't reset state.
+    ///
+    /// - parameter room: pass a Room to use Path B (lit up from inside
+    ///   a room — the doorway sheet is skipped). Pass nil for Path A
+    ///   (Home Light Up — the doorway sheet appears post-ceremony).
     func beginFlow(
         userID: UUID,
-        roomID: UUID?,
+        room: Room?,
         isGhost: Bool,
         analytics: AnalyticsService
     ) {
         guard current == nil else { return }
         current = SessionViewModel(
             userID: userID,
-            roomID: roomID,
+            room: room,
             isGhost: isGhost,
             analytics: analytics
         )
