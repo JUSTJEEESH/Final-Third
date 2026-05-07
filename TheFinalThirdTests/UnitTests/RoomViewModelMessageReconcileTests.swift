@@ -97,13 +97,14 @@ private struct StubRoomRepo: RoomRepository {
     func list() async throws -> [Room] { [] }
     func fetch(id: UUID) async throws -> Room {
         Room(id: id, ownerID: nil, name: "Test", description: nil, theme: nil,
-             isPrivate: false, audioTheme: nil, createdAt: .now)
+             isPrivate: false, audioTheme: nil, mode: .chat, createdAt: .now)
     }
     func create(name: String, isPrivate: Bool, theme: String?, audioTheme: AudioTheme?) async throws -> Room {
         Room(id: UUID(), ownerID: nil, name: name, description: nil, theme: theme,
-             isPrivate: isPrivate, audioTheme: audioTheme, createdAt: .now)
+             isPrivate: isPrivate, audioTheme: audioTheme, mode: .chat, createdAt: .now)
     }
     func join(roomID: UUID) async throws {}
     func leave(roomID: UUID) async throws {}
     func setPresence(roomID: UUID, isGhost: Bool) async throws {}
+    func liveNow(roomIDs: [UUID]) async throws -> [UUID: LiveNowSummary] { [:] }
 }

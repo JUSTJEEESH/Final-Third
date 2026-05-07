@@ -8,6 +8,11 @@ protocol RoomRepository: Sendable {
     func join(roomID: UUID) async throws
     func leave(roomID: UUID) async throws
     func setPresence(roomID: UUID, isGhost: Bool) async throws
+    /// Per-room "lit up right now" aggregate (count + sample of
+    /// smokers with cigars). Powers the doorway sheet's live-now
+    /// section. Returns a dictionary keyed by roomID; rooms with no
+    /// active sessions are absent.
+    func liveNow(roomIDs: [UUID]) async throws -> [UUID: LiveNowSummary]
 }
 
 struct LiveRoomRepository: RoomRepository {
@@ -78,5 +83,52 @@ struct LiveRoomRepository: RoomRepository {
             .upsert(Presence(room_id: roomID, user_id: userID, is_ghost: isGhost),
                     onConflict: "room_id,user_id")
             .execute()
+    }
+
+    func liveNow(roomIDs: [UUID]) async throws -> [UUID: LiveNowSummary] {
+        guard !roomIDs.isEmpty else { return [:] }
+        struct Args: Encodable { let p_room_ids: [UUID] }
+        // The RPC returns one row per room with active (non-ghost)
+        // sessions. We decode each row into a small intermediate
+        // shape, then domainize. `smokers` is jsonb on the wire — the
+        // Supabase Swift SDK decodes it directly into our nested
+        // Codable type because the JSON shape matches.
+        struct Row: Decodable {
+            let room_id: UUID
+            let live_count: Int
+            let smokers: [SmokerRow]
+        }
+        struct SmokerRow: Decodable {
+            let user_id: UUID
+            let display_name: String
+            let avatar_url: String?
+            let cigar_brand: String?
+            let cigar_line: String?
+            let minutes_in: Int
+        }
+        let rows: [Row] = try await client
+            .rpc("room_live_now", params: Args(p_room_ids: roomIDs))
+            .execute()
+            .value
+
+        var out: [UUID: LiveNowSummary] = [:]
+        for row in rows {
+            let smokers = row.smokers.map {
+                LiveNowSummary.Smoker(
+                    userID: $0.user_id,
+                    displayName: $0.display_name,
+                    avatarURL: $0.avatar_url.flatMap(URL.init(string:)),
+                    cigarBrand: $0.cigar_brand,
+                    cigarLine: $0.cigar_line,
+                    minutesIn: $0.minutes_in
+                )
+            }
+            out[row.room_id] = LiveNowSummary(
+                roomID: row.room_id,
+                liveCount: row.live_count,
+                smokers: smokers
+            )
+        }
+        return out
     }
 }

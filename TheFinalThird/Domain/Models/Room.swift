@@ -8,7 +8,12 @@ struct Room: Identifiable, Hashable, Sendable, Codable {
     var theme: String?
     var isPrivate: Bool
     var audioTheme: AudioTheme?
+    var mode: Mode = .chat
     var createdAt: Date
+
+    /// Voice rooms are Patron-only. Chat rooms are open to everyone.
+    /// The picker shows voice rooms with a gold lock for free users.
+    enum Mode: String, Sendable, Codable { case chat, voice }
 }
 
 struct RoomMember: Hashable, Sendable, Codable {

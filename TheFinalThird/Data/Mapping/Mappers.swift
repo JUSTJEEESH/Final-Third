@@ -80,6 +80,7 @@ extension DTO.Room {
             theme: theme,
             isPrivate: is_private,
             audioTheme: audio_theme.flatMap(AudioTheme.init(rawValue:)),
+            mode: mode.flatMap(Room.Mode.init(rawValue:)) ?? .chat,
             createdAt: created_at
         )
     }

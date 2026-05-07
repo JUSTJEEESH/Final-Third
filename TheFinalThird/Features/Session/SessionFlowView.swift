@@ -61,7 +61,10 @@ struct SessionFlowView: View {
         switch phase {
         case .selectingCigar, .selectingDrink, .selectingLightingMethod, .lighting:
             return true
-        case .active, .summary, .finished:
+        // Once the ceremony is done the user has committed — the
+        // picker has its own "Stay solo" exit so we don't show a
+        // separate cancel.
+        case .choosingRoom, .active, .summary, .finished:
             return false
         }
     }
@@ -99,14 +102,19 @@ struct SessionFlowView: View {
         case .selectingLightingMethod:  MethodPicker(vm: vm)
         case .lighting:
             LightingCeremonyView(cigar: vm.cigar, method: vm.lightingMethod) {
-                Task {
-                    await vm.startSession()
-                    container.analytics.track(.lightingCeremonyCompleted)
-                }
+                vm.ceremonyCompleted()
+                container.analytics.track(.lightingCeremonyCompleted)
             }
             .onAppear {
                 container.analytics.track(.lightingCeremonyShown(method: vm.lightingMethod))
             }
+        case .choosingRoom:
+            // The doorway sheet — rendered as a phase rather than a
+            // sheet so the user has to make a choice (a card or
+            // "Stay solo"). Every cigar gets a doorway moment.
+            RoomPickerSheet(onPick: { room in
+                Task { await vm.chooseRoom(room) }
+            })
         case .active:                   ActiveSessionView(vm: vm)
         case .summary:                  SessionSummaryView(vm: vm)
         case .finished:

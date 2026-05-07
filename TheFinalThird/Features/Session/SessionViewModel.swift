@@ -9,6 +9,10 @@ final class SessionViewModel {
         case selectingDrink
         case selectingLightingMethod
         case lighting
+        /// Post-ceremony, pre-active. The "Where are you sitting?"
+        /// picker owns the screen here. Resolves into either a room
+        /// or solo via `chooseRoom(_:)`.
+        case choosingRoom
         case active
         case summary
         case finished
@@ -20,6 +24,10 @@ final class SessionViewModel {
     var lightingMethod: Session.LightingMethod = .match
     var session: Session?
     var lastThird: Session.Third?
+    /// Set by `chooseRoom(_:)` before the session row is created in
+    /// Postgres so the row starts with the correct `room_id`. Stays
+    /// nil for solo sessions.
+    private(set) var chosenRoom: Room?
 
     // Summary
     var flavor: Int = 3
@@ -31,7 +39,9 @@ final class SessionViewModel {
     var notes: String = ""
 
     private let userID: UUID
-    private let roomID: UUID?
+    /// May be set at construction (Path B: lit up from inside a room)
+    /// or assigned by `chooseRoom(_:)` after the ceremony (Path A).
+    private var roomID: UUID?
     private let isGhost: Bool
     private let sessions: SessionRepository
     private let analytics: AnalyticsService
@@ -67,6 +77,29 @@ final class SessionViewModel {
     func chooseLightingMethod(_ method: Session.LightingMethod) {
         lightingMethod = method
         phase = .lighting
+    }
+
+    /// Called from the LightingCeremonyView's onComplete handler
+    /// instead of going straight to .active. Opens the doorway sheet.
+    func ceremonyCompleted() {
+        phase = .choosingRoom
+    }
+
+    /// Resolves the doorway sheet. Pass `nil` for "Stay solo" — the
+    /// session row is still created (we just leave `room_id` null).
+    /// Otherwise the chosen room is recorded and (best-effort) the
+    /// user is enrolled in `room_members` so they show up in the
+    /// room's chat alongside the cigar.
+    func chooseRoom(_ room: Room?, rooms: RoomRepository = LiveRoomRepository()) async {
+        chosenRoom = room
+        roomID = room?.id
+        if let room {
+            // Best-effort join. We don't want to block the session
+            // start on a room_members write — if it fails we'll heal
+            // the next time the user opens the room.
+            try? await rooms.join(roomID: room.id)
+        }
+        await startSession()
     }
 
     func startSession() async {

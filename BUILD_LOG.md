@@ -576,6 +576,57 @@ Without global session state, every other surface (room bar, "Pull up a chair" p
 
 ---
 
+## 2026-05-07 — Rooms × Sessions, Step 3: The doorway
+
+The single biggest moment for pulling solo users into the social half of the app — the cigar's lit, the flame is still glowing in their eyes, and we offer them company or quiet, never forcing.
+
+**What landed**
+
+- Migration `0011_room_live_now.sql` (applied via MCP):
+  - `room_live_now(p_room_ids uuid[])` SECURITY DEFINER RPC. Returns per-room `live_count` + a sample of up to 3 smokers (display name, avatar URL, cigar brand/line, minutes-in, started_at) for a given list of rooms.
+  - Filters out ghost sessions server-side. Ghost = invisible, end of story.
+  - `stable` so Postgres can cache results within a single transaction.
+
+- Domain layer:
+  - `Room.mode` enum (`chat` | `voice`). Defaults to `.chat` on existing rows. Voice rooms are visible to free users in the picker but Patron-locked at selection time.
+  - `LiveNowSummary` value type with nested `Smoker` (and a `cigarDisplay` helper).
+  - DTOs + Mappers updated. `StubRoomRepo` test mock updated.
+
+- Repository:
+  - `RoomRepository.liveNow(roomIDs:)` calls the RPC, returns `[UUID: LiveNowSummary]`.
+
+- `RoomPickerViewModel`:
+  - Two-pass load (rooms list, then liveNow aggregate).
+  - Sectioning getters: `liveRooms` (count > 0, sorted desc), `topicRooms` (chat + non-private + no smokers), `voiceRooms`.
+  - `refreshLiveNow()` for the 30-second poll while the sheet is open.
+
+- `RoomPickerSheet`:
+  - Header: "THE ROOM IS YOURS — Where would you like to sit tonight?"
+  - **Lit up right now** cards: ember pip, room name, "N lit up" badge, smoker rows (avatar with gold ring, name, cigar, minutes-in), "+N more lit up" overflow line. Gold-bordered, leather grain, soft warm gradient, gold glow shadow. Magnetic.
+  - **By the window** cards: simple chat-room rows with name + audio theme.
+  - **Voice rooms**: always visible, gold lock for non-Patrons, taps fire upsell sheet. Patron upsell is a placeholder until Step 7.
+  - **Stay solo** at the bottom — moon icon, "No room tonight. Just the burn." Soft surface, never gold.
+  - Task-based 30-second polling for live-now refreshes (Swift Concurrency, not Timer — keeps Swift 6 strict isolation happy).
+
+- Session lifecycle:
+  - New `Phase.choosingRoom` between `.lighting` and `.active`.
+  - `SessionViewModel.ceremonyCompleted()` advances to `.choosingRoom` (replacing the direct call to `startSession()` from the ceremony's onComplete).
+  - `SessionViewModel.chooseRoom(_ room: Room?)` — records `chosenRoom`, sets the internal `roomID`, best-effort joins `room_members`, then calls `startSession()`. Solo passes `nil` → session row gets `room_id = null`.
+  - `SessionFlowView` renders the picker as the screen during `.choosingRoom`. Cancel button hides post-ceremony — the picker has its own "Stay solo" exit.
+
+**Why this matters**
+
+- Every cigar now gets a doorway moment. Solo is a deliberate choice, not the default.
+- Live-now first means the user sees actual humans — names, real cigars, minutes-in — not just a list of room names. That's the magnet.
+- Schema-ready for voice rooms via `Room.mode` without a parallel table.
+- Sessions write `room_id` correctly upfront, so live-now queries see them immediately and the room presence in Step 4 has the data it needs.
+
+**Visible to user**
+
+Light up like before. After the ceremony's flame settles, a leather-and-gold sheet swoops up: "Where would you like to sit tonight?" Pick a room (with smokers + cigars showing for the live ones) or tap "Stay solo" — either way, your cigar is lit.
+
+---
+
 ## Open items (final polish)
 
 - Drop in licensed audio assets per the spec above; verify ambient loops are seamless across AirPods route changes.

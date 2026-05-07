@@ -67,6 +67,7 @@ extension DTO {
         let theme: String?
         let is_private: Bool
         let audio_theme: String?
+        let mode: String?
         let created_at: Date
     }
 
