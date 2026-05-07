@@ -5,6 +5,7 @@ struct HomeView: View {
     @Environment(DeepLinkRouter.self) private var router
     @State private var vm: HomeViewModel?
     @State private var showLightUp = false
+    @State private var showUsualEditor = false
 
     var body: some View {
         NavigationStack {
@@ -35,6 +36,10 @@ struct HomeView: View {
                                 isGhost: vm?.profile?.ghostModeDefault ?? false)
             }
         }
+        .sheet(isPresented: $showUsualEditor,
+               onDismiss: { Task { await vm?.load() } }) {
+            TheUsualEditor()
+        }
     }
 
     @ViewBuilder
@@ -47,7 +52,11 @@ struct HomeView: View {
                     hasUsual: vm.usual?.cigarID != nil
                 )
                 lightUpButton
-                if let cigar = vm.tonightsPick { TonightsPick(cigar: cigar) }
+                if let cigar = vm.tonightsPick {
+                    TonightsPick(cigar: cigar)
+                } else {
+                    TonightsPickPlaceholder { showUsualEditor = true }
+                }
                 if let usual = vm.usual { YourRitual(usual: usual, cigar: vm.usualCigar) }
                 if let drop = vm.currentDrop, let cigar = vm.dropCigar {
                     DropOfTheWeek(drop: drop, cigar: cigar)
@@ -224,6 +233,63 @@ private struct TonightsPick: View {
             .padding(.vertical, 3)
             .background(FTColor.surfaceLo.opacity(0.6))
             .clipShape(Capsule())
+    }
+}
+
+/// Placeholder shown on Home when there's no Usual cigar set, no live
+/// drop, and no upcoming drop with a featured cigar. Atmosphere-first
+/// nudge to set The Usual rather than a cold "no data" gap.
+private struct TonightsPickPlaceholder: View {
+    let onTap: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: FTSpace.sm) {
+            sectionTitle("Tonight's Pick")
+            Button(action: onTap) {
+                ZStack(alignment: .topLeading) {
+                    RoundedRectangle(cornerRadius: FTRadius.lg, style: .continuous)
+                        .fill(FTColor.surface)
+                    TexturePanel(texture: .tobaccoLeaf, opacity: 0.15, zoom: 1.6)
+                        .clipShape(RoundedRectangle(cornerRadius: FTRadius.lg,
+                                                    style: .continuous))
+
+                    HStack(alignment: .center, spacing: FTSpace.md) {
+                        ZStack {
+                            Circle()
+                                .stroke(FTColor.gold.opacity(0.55),
+                                        lineWidth: FTStroke.thin)
+                                .frame(width: 48, height: 48)
+                            Image(systemName: "leaf.fill")
+                                .foregroundStyle(FTColor.gold)
+                                .font(.system(size: 18, weight: .medium))
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("PICK YOUR USUAL")
+                                .font(FTType.caption(10, weight: .semibold))
+                                .foregroundStyle(FTColor.gold)
+                                .tracking(1.6)
+                            Text("Your nightly cigar lives here.")
+                                .font(FTType.body(15, weight: .medium))
+                                .foregroundStyle(FTColor.ink)
+                            Text("Tap to set it — we'll surface it every night.")
+                                .font(FTType.caption(11))
+                                .foregroundStyle(FTColor.inkMuted)
+                                .padding(.top, 1)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .foregroundStyle(FTColor.inkFaint)
+                    }
+                    .padding(FTSpace.lg)
+                }
+                .overlay(
+                    RoundedRectangle(cornerRadius: FTRadius.lg, style: .continuous)
+                        .stroke(FTColor.divider, lineWidth: FTStroke.hairline)
+                )
+                .shadow(color: .black.opacity(0.30), radius: 8, x: 0, y: 4)
+            }
+            .buttonStyle(.plain)
+        }
     }
 }
 

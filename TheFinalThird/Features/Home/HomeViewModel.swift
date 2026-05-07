@@ -93,6 +93,9 @@ final class HomeViewModel {
         let city = profile?.city
         nearbyEvents = (try? await events.upcoming(city: city, limit: 3)) ?? []
 
-        tonightsPick = usualCigar ?? dropCigar
+        // Tonight's Pick fallback chain: the user's Usual cigar takes
+        // precedence; then a live drop; then an upcoming drop so the
+        // section always has something to show.
+        tonightsPick = usualCigar ?? dropCigar ?? upcomingDropCigar
     }
 }
