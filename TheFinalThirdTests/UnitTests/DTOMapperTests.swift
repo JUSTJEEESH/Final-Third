@@ -9,8 +9,9 @@ struct DTOMapperTests {
         let id = UUID()
         let dto = DTO.Profile(
             id: id, email: "a@b.co", display_name: "Marcus", handle: "m",
-            avatar_url: "https://example.com/a.png", bio: nil, city: "Tegucigalpa",
-            is_honduras_local: true, is_premium: false,
+            avatar_url: "https://example.com/a.png", bio: nil,
+            country: "HN", city: "Tegucigalpa",
+            is_local: true, is_premium: false,
             audio_theme: "rain",
             voice_enabled: true, ghost_mode_default: true,
             notif_prefs: .init(the_usual: false, arrival_signal: true, drops: nil, events: nil),
@@ -24,7 +25,8 @@ struct DTOMapperTests {
         #expect(p.notificationPrefs.theUsual == false)
         #expect(p.notificationPrefs.arrivalSignal == true)
         #expect(p.notificationPrefs.drops == true)   // nil falls back to default true
-        #expect(p.isHondurasLocal == true)
+        #expect(p.country == "HN")
+        #expect(p.isLocal == true)
         #expect(p.ghostModeDefault == true)
         #expect(p.timezone == "America/Tegucigalpa")
     }

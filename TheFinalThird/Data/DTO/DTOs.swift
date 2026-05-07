@@ -12,8 +12,9 @@ extension DTO {
         let handle: String?
         let avatar_url: String?
         let bio: String?
+        let country: String?
         let city: String?
-        let is_honduras_local: Bool
+        let is_local: Bool
         let is_premium: Bool
         let audio_theme: String?
         let voice_enabled: Bool

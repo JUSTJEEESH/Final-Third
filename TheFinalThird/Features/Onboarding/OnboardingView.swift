@@ -70,38 +70,60 @@ struct OnboardingView: View {
                     .padding(.top, FTSpace.xl)
                     .padding(.bottom, FTSpace.lg)
             } else {
-                Spacer().frame(height: FTSpace.xxxl)
+                Spacer().frame(height: FTSpace.lg)
             }
 
-            ScrollView {
-                Group {
-                    switch vm.step {
-                    case .welcome: WelcomeStep(vm: vm)
-                    case .intro: IntroStep(vm: vm)
-                    case .name: NameStep(vm: vm)
-                    case .avatar: AvatarStep(vm: vm,
-                                             showPicker: { showAvatarPicker = true })
-                    case .location: LocationStep(vm: vm)
-                    case .usual: UsualStep(vm: vm)
-                    case .vibe: VibeStep(vm: vm)
-                    case .notifications: NotificationsStep(vm: vm)
-                    case .ready: ReadyStep(vm: vm)
+            // Welcome and Intro are full-bleed presentational screens
+            // that need real Spacers — wrapping them in a ScrollView
+            // collapses the spacers and the user never sees the carousel.
+            // Setup screens get a ScrollView so long forms can scroll.
+            switch vm.step {
+            case .welcome:
+                WelcomeStep(vm: vm)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(.horizontal, FTSpace.xl)
+                    .id(vm.step.rawValue)
+                    .transition(stepTransition)
+            case .intro:
+                IntroStep(vm: vm)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(.horizontal, FTSpace.xl)
+                    .id(vm.step.rawValue * 10 + vm.introIndex)
+                    .transition(stepTransition)
+            default:
+                ScrollView {
+                    Group {
+                        switch vm.step {
+                        case .name: NameStep(vm: vm)
+                        case .avatar: AvatarStep(vm: vm,
+                                                 showPicker: { showAvatarPicker = true })
+                        case .location: LocationStep(vm: vm)
+                        case .usual: UsualStep(vm: vm)
+                        case .vibe: VibeStep(vm: vm)
+                        case .notifications: NotificationsStep(vm: vm)
+                        case .ready: ReadyStep(vm: vm)
+                        default: EmptyView()
+                        }
                     }
+                    .padding(.horizontal, FTSpace.xl)
+                    .padding(.bottom, FTSpace.xl)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .id(vm.step.rawValue)
+                    .transition(stepTransition)
                 }
-                .padding(.horizontal, FTSpace.xl)
-                .padding(.bottom, FTSpace.xl)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .id(vm.step.rawValue * 10 + vm.introIndex)
-                .transition(.asymmetric(
-                    insertion: .move(edge: .trailing).combined(with: .opacity),
-                    removal: .move(edge: .leading).combined(with: .opacity)
-                ))
             }
-            .animation(FTMotion.easeOutSoft, value: vm.step)
-            .animation(FTMotion.easeOutSoft, value: vm.introIndex)
 
             navigationBar(vm: vm)
         }
+        .animation(FTMotion.easeOutSoft, value: vm.step)
+        .animation(FTMotion.easeOutSoft, value: vm.introIndex)
+    }
+
+    private var stepTransition: AnyTransition {
+        .asymmetric(
+            insertion: .move(edge: .trailing).combined(with: .opacity),
+            removal: .move(edge: .leading).combined(with: .opacity)
+        )
     }
 
     private func stepIndicator(current: Int, total: Int) -> some View {
@@ -243,7 +265,7 @@ private struct WelcomeStep: View {
 
     var body: some View {
         VStack(spacing: FTSpace.xxl) {
-            Spacer().frame(height: FTSpace.xxl)
+            Spacer()
 
             // Hero flame — gold gradient with breathing glow.
             ZStack {
@@ -275,12 +297,17 @@ private struct WelcomeStep: View {
                     .foregroundStyle(FTColor.ink)
                     .multilineTextAlignment(.center)
                     .lineSpacing(4)
+                Text("A quiet room for the last third of the day.\nFor the people who actually slow down.")
+                    .font(FTType.body(15))
+                    .foregroundStyle(FTColor.inkMuted)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(3)
+                    .padding(.top, FTSpace.sm)
             }
 
             Spacer()
         }
         .frame(maxWidth: .infinity)
-        .padding(.bottom, FTSpace.xxl)
     }
 }
 
@@ -495,14 +522,15 @@ private struct NameStep: View {
             StepHeader(
                 eyebrow: "Your name",
                 title: "What should we call you?",
-                subtitle: "Use whatever feels right. You can change it later."
+                subtitle: "However you'd introduce yourself across the table. First name, nickname, full name — whatever fits."
             )
-            FTField(title: "Name or handle", text: $vm.displayName,
+            FTField(title: "Display name", text: $vm.displayName,
                     placeholder: "Marcus", autocap: .words)
             FTField(title: "@handle (optional)", text: $vm.handle,
                     placeholder: "marcus", autocap: .never, disableAutocorrect: true)
-            FTField(title: "Bio (optional)", text: $vm.bio,
-                    placeholder: "What's your story?", autocap: .sentences, axis: .vertical)
+            FTField(title: "A line about you (optional)", text: $vm.bio,
+                    placeholder: "Cuban purist. Old fashioneds. Late nights.",
+                    autocap: .sentences, axis: .vertical)
         }
     }
 }
@@ -515,8 +543,8 @@ private struct AvatarStep: View {
         VStack(alignment: .leading, spacing: FTSpace.lg) {
             StepHeader(
                 eyebrow: "Your face",
-                title: "A photo, if you'd like.",
-                subtitle: "Helps your people recognize you across the lounge. You can add it later."
+                title: "Put a face to your name.",
+                subtitle: "It's how regulars recognize each other across the lounge. No pressure — you can add one anytime from Settings."
             )
 
             VStack(spacing: FTSpace.md) {
@@ -578,22 +606,51 @@ private struct AvatarStep: View {
 
 private struct LocationStep: View {
     @Bindable var vm: OnboardingViewModel
+    @State private var showCountryPicker = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: FTSpace.lg) {
             StepHeader(
                 eyebrow: "Where you sit",
                 title: "Where's your chair?",
-                subtitle: "Helps us surface nearby people, events, and drops. Optional."
+                subtitle: "We use this to surface nearby members, local events, and city-specific drops. Stays private — we never show your exact location."
             )
-            FTField(title: "City (optional)", text: $vm.city,
-                    placeholder: "Tegucigalpa", autocap: .words)
+
+            VStack(alignment: .leading, spacing: FTSpace.xs) {
+                Text("COUNTRY")
+                    .font(FTType.caption(11, weight: .semibold))
+                    .foregroundStyle(FTColor.inkMuted)
+                    .tracking(1)
+                Button {
+                    HapticsService.shared.tap()
+                    showCountryPicker = true
+                } label: {
+                    FTCard {
+                        HStack(spacing: FTSpace.md) {
+                            Text(flagEmoji(for: vm.country) ?? "🌍")
+                                .font(.system(size: 22))
+                            Text(displayCountry)
+                                .font(FTType.body(15))
+                                .foregroundStyle(vm.country == nil ? FTColor.inkMuted : FTColor.ink)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .foregroundStyle(FTColor.inkFaint)
+                                .font(.system(size: 13, weight: .semibold))
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+
+            FTField(title: "City / area (optional)", text: $vm.city,
+                    placeholder: cityPlaceholder, autocap: .words)
+
             FTCard {
-                Toggle(isOn: $vm.isHondurasLocal) {
+                Toggle(isOn: $vm.isLocal) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Honduras local")
+                        Text("I live here year-round")
                             .font(FTType.body(15, weight: .medium))
-                        Text("We'll surface nearby events and locals.")
+                        Text("Surfaces local lounges, hosts, and weeknight events instead of travel content.")
                             .font(FTType.caption(11))
                             .foregroundStyle(FTColor.inkMuted)
                     }
@@ -601,87 +658,545 @@ private struct LocationStep: View {
                 .tint(FTColor.gold)
             }
         }
+        .sheet(isPresented: $showCountryPicker) {
+            CountryPickerSheet(selection: $vm.country)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        }
+    }
+
+    private var displayCountry: String {
+        guard let code = vm.country else { return "Choose your country" }
+        return Locale.current.localizedString(forRegionCode: code) ?? code
+    }
+
+    private var cityPlaceholder: String {
+        guard let code = vm.country else { return "Roatán" }
+        switch code {
+        case "US": return "Brooklyn, NY"
+        case "GB": return "London"
+        case "JP": return "Tokyo"
+        case "HN": return "Roatán"
+        default: return ""
+        }
+    }
+
+    private func flagEmoji(for code: String?) -> String? {
+        guard let code, code.count == 2 else { return nil }
+        let base: UInt32 = 127_397
+        var s = ""
+        for scalar in code.uppercased().unicodeScalars {
+            if let v = UnicodeScalar(base + scalar.value) {
+                s.unicodeScalars.append(v)
+            }
+        }
+        return s
+    }
+}
+
+private struct CountryPickerSheet: View {
+    @Binding var selection: String?
+    @Environment(\.dismiss) private var dismiss
+    @State private var query: String = ""
+
+    /// All ISO 3166-1 alpha-2 regions, sorted by their localized name in
+    /// the current locale. Cached at first access.
+    private static let allCountries: [(code: String, name: String)] = {
+        Locale.Region.isoRegions
+            .map(\.identifier)
+            .filter { $0.count == 2 }
+            .compactMap { code -> (String, String)? in
+                guard let name = Locale.current.localizedString(forRegionCode: code) else { return nil }
+                return (code, name)
+            }
+            .sorted { $0.1.localizedCaseInsensitiveCompare($1.1) == .orderedAscending }
+    }()
+
+    private var filtered: [(code: String, name: String)] {
+        guard !query.isEmpty else { return Self.allCountries }
+        let q = query.lowercased()
+        return Self.allCountries.filter {
+            $0.name.lowercased().contains(q) || $0.code.lowercased().contains(q)
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                FTColor.background.ignoresSafeArea()
+                VStack(spacing: 0) {
+                    HStack(spacing: FTSpace.sm) {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundStyle(FTColor.inkFaint)
+                        TextField("Search countries", text: $query)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled(true)
+                            .foregroundStyle(FTColor.ink)
+                        if !query.isEmpty {
+                            Button { query = "" } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(FTColor.inkFaint)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(FTSpace.md)
+                    .background(FTColor.surface)
+                    .clipShape(RoundedRectangle(cornerRadius: FTRadius.md))
+                    .padding(.horizontal, FTSpace.xl)
+                    .padding(.vertical, FTSpace.sm)
+
+                    List {
+                        ForEach(filtered, id: \.code) { item in
+                            Button {
+                                HapticsService.shared.tap()
+                                selection = item.code
+                                dismiss()
+                            } label: {
+                                HStack(spacing: FTSpace.md) {
+                                    Text(flagEmoji(for: item.code) ?? "🌍")
+                                        .font(.system(size: 20))
+                                    Text(item.name)
+                                        .font(FTType.body(15))
+                                        .foregroundStyle(FTColor.ink)
+                                    Spacer()
+                                    if selection == item.code {
+                                        Image(systemName: "checkmark")
+                                            .foregroundStyle(FTColor.gold)
+                                    }
+                                }
+                                .padding(.vertical, 4)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .listRowBackground(FTColor.background)
+                            .listRowSeparatorTint(FTColor.divider)
+                        }
+                    }
+                    .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
+                }
+            }
+            .navigationTitle("Country")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                        .foregroundStyle(FTColor.inkMuted)
+                }
+            }
+        }
+    }
+
+    private func flagEmoji(for code: String) -> String? {
+        guard code.count == 2 else { return nil }
+        let base: UInt32 = 127_397
+        var s = ""
+        for scalar in code.uppercased().unicodeScalars {
+            if let v = UnicodeScalar(base + scalar.value) {
+                s.unicodeScalars.append(v)
+            }
+        }
+        return s
     }
 }
 
 private struct UsualStep: View {
     @Bindable var vm: OnboardingViewModel
+    @State private var showCigarPicker = false
+    @State private var showDrinkPicker = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: FTSpace.lg) {
             StepHeader(
-                eyebrow: "Your ritual",
-                title: "When do you settle in?",
-                subtitle: "We'll quietly remind you. Your chair is ready."
+                eyebrow: "The usual",
+                title: "What's your nightly ritual?",
+                subtitle: "Tell us your go-to smoke and pour. We'll have it ready when you walk in — and remind you at the right hour, if you'd like."
             )
 
             FTCard {
-                Toggle("Send me a reminder", isOn: $vm.enableUsualReminder)
-                    .tint(FTColor.gold)
+                Toggle(isOn: $vm.enableUsualReminder) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Quiet nightly reminder")
+                            .font(FTType.body(15, weight: .medium))
+                        Text("One soft ping at your time. Easy to silence.")
+                            .font(FTType.caption(11))
+                            .foregroundStyle(FTColor.inkMuted)
+                    }
+                }
+                .tint(FTColor.gold)
             }
 
             if vm.enableUsualReminder {
-                FTCard {
-                    DatePicker("",
-                               selection: $vm.preferredTime,
-                               displayedComponents: .hourAndMinute)
-                        .datePickerStyle(.wheel)
-                        .labelsHidden()
-                        .frame(maxWidth: .infinity)
+                VStack(alignment: .leading, spacing: FTSpace.xs) {
+                    Text("WHAT TIME DO YOU SETTLE IN?")
+                        .font(FTType.caption(11, weight: .semibold))
+                        .foregroundStyle(FTColor.inkMuted)
+                        .tracking(1)
+                    FTCard {
+                        DatePicker("",
+                                   selection: $vm.preferredTime,
+                                   displayedComponents: .hourAndMinute)
+                            .datePickerStyle(.wheel)
+                            .labelsHidden()
+                            .frame(maxWidth: .infinity)
+                    }
                 }
             }
 
-            sectionTitle("Default cigar")
-            cigarPicker
-            sectionTitle("Default drink")
-            drinkPicker
+            VStack(alignment: .leading, spacing: FTSpace.xs) {
+                Text("YOUR GO-TO CIGAR")
+                    .font(FTType.caption(11, weight: .semibold))
+                    .foregroundStyle(FTColor.inkMuted)
+                    .tracking(1)
+                pickerButton(
+                    icon: "flame.fill",
+                    primary: vm.cigar?.displayName ?? "Pick a cigar",
+                    secondary: vm.cigar?.country,
+                    isSet: vm.cigar != nil
+                ) {
+                    HapticsService.shared.tap()
+                    showCigarPicker = true
+                }
+                if vm.cigar != nil {
+                    Button("Clear") { vm.cigar = nil }
+                        .font(FTType.caption(12))
+                        .foregroundStyle(FTColor.inkFaint)
+                        .padding(.leading, 4)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: FTSpace.xs) {
+                Text("YOUR GO-TO POUR")
+                    .font(FTType.caption(11, weight: .semibold))
+                    .foregroundStyle(FTColor.inkMuted)
+                    .tracking(1)
+                pickerButton(
+                    icon: "wineglass.fill",
+                    primary: vm.drink?.name ?? "Pick a drink",
+                    secondary: drinkSubtitle,
+                    isSet: vm.drink != nil
+                ) {
+                    HapticsService.shared.tap()
+                    showDrinkPicker = true
+                }
+                if vm.drink != nil {
+                    Button("Clear") { vm.drink = nil }
+                        .font(FTType.caption(12))
+                        .foregroundStyle(FTColor.inkFaint)
+                        .padding(.leading, 4)
+                }
+            }
+
+            Text("You can leave these empty for now — we'll learn your taste as you log nights.")
+                .font(FTType.caption(12))
+                .foregroundStyle(FTColor.inkFaint)
+                .padding(.top, FTSpace.xs)
+        }
+        .sheet(isPresented: $showCigarPicker) {
+            CigarPickerSheet(cigars: vm.cigars, selection: $vm.cigar)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showDrinkPicker) {
+            DrinkPickerSheet(drinks: vm.drinks, selection: $vm.drink)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
     }
 
-    private func sectionTitle(_ text: String) -> some View {
-        Text(text.uppercased())
-            .font(FTType.caption(11, weight: .semibold))
-            .foregroundStyle(FTColor.inkMuted)
-            .tracking(1.2)
-            .padding(.top, FTSpace.sm)
+    private var drinkSubtitle: String? {
+        guard let d = vm.drink else { return nil }
+        return [d.brand, d.subtype].compactMap { $0 }.joined(separator: " · ")
     }
 
-    private var cigarPicker: some View {
-        Menu {
-            Button("None for now") { vm.cigar = nil }
-            ForEach(vm.cigars) { c in
-                Button(c.displayName) { vm.cigar = c }
-            }
-        } label: {
+    @ViewBuilder
+    private func pickerButton(
+        icon: String,
+        primary: String,
+        secondary: String?,
+        isSet: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
             FTCard {
-                HStack {
-                    Text(vm.cigar?.displayName ?? "Choose a cigar")
-                        .font(FTType.body(15))
-                        .foregroundStyle(vm.cigar == nil ? FTColor.inkMuted : FTColor.ink)
+                HStack(spacing: FTSpace.md) {
+                    Image(systemName: icon)
+                        .foregroundStyle(isSet ? FTColor.gold : FTColor.inkFaint)
+                        .frame(width: 22)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(primary)
+                            .font(FTType.body(15, weight: isSet ? .medium : .regular))
+                            .foregroundStyle(isSet ? FTColor.ink : FTColor.inkMuted)
+                        if let secondary, !secondary.isEmpty {
+                            Text(secondary)
+                                .font(FTType.caption(11))
+                                .foregroundStyle(FTColor.inkFaint)
+                        }
+                    }
                     Spacer()
-                    Image(systemName: "chevron.down").foregroundStyle(FTColor.inkFaint)
+                    Image(systemName: "chevron.right")
+                        .foregroundStyle(FTColor.inkFaint)
+                        .font(.system(size: 13, weight: .semibold))
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct CigarPickerSheet: View {
+    let cigars: [Cigar]
+    @Binding var selection: Cigar?
+    @Environment(\.dismiss) private var dismiss
+    @State private var query: String = ""
+
+    private var filtered: [Cigar] {
+        guard !query.isEmpty else { return cigars }
+        let q = query.lowercased()
+        return cigars.filter {
+            $0.brand.lowercased().contains(q)
+                || $0.line.lowercased().contains(q)
+                || ($0.vitola?.lowercased().contains(q) ?? false)
+                || ($0.country?.lowercased().contains(q) ?? false)
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                FTColor.background.ignoresSafeArea()
+                VStack(spacing: 0) {
+                    searchBar
+                    List {
+                        ForEach(filtered) { cigar in
+                            Button {
+                                HapticsService.shared.tap()
+                                selection = cigar
+                                dismiss()
+                            } label: {
+                                HStack(spacing: FTSpace.md) {
+                                    Image(systemName: "flame.fill")
+                                        .foregroundStyle(FTColor.gold.opacity(0.7))
+                                        .frame(width: 20)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(cigar.displayName)
+                                            .font(FTType.body(15, weight: .medium))
+                                            .foregroundStyle(FTColor.ink)
+                                        HStack(spacing: 6) {
+                                            if let vitola = cigar.vitola {
+                                                Text(vitola)
+                                                    .font(FTType.caption(11))
+                                                    .foregroundStyle(FTColor.inkMuted)
+                                            }
+                                            if let country = cigar.country {
+                                                Text("·").foregroundStyle(FTColor.inkFaint)
+                                                Text(country)
+                                                    .font(FTType.caption(11))
+                                                    .foregroundStyle(FTColor.inkFaint)
+                                            }
+                                        }
+                                    }
+                                    Spacer()
+                                    if selection?.id == cigar.id {
+                                        Image(systemName: "checkmark")
+                                            .foregroundStyle(FTColor.gold)
+                                    }
+                                }
+                                .padding(.vertical, 4)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .listRowBackground(FTColor.background)
+                            .listRowSeparatorTint(FTColor.divider)
+                        }
+                    }
+                    .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
+                }
+            }
+            .navigationTitle("Choose your cigar")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                        .foregroundStyle(FTColor.inkMuted)
                 }
             }
         }
     }
 
-    private var drinkPicker: some View {
-        Menu {
-            Button("None for now") { vm.drink = nil }
-            ForEach(vm.drinks) { d in
-                Button(d.name) { vm.drink = d }
+    private var searchBar: some View {
+        HStack(spacing: FTSpace.sm) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(FTColor.inkFaint)
+            TextField("Brand, line, vitola, country", text: $query)
+                .textInputAutocapitalization(.words)
+                .autocorrectionDisabled(true)
+                .foregroundStyle(FTColor.ink)
+            if !query.isEmpty {
+                Button { query = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(FTColor.inkFaint)
+                }
+                .buttonStyle(.plain)
             }
-        } label: {
-            FTCard {
-                HStack {
-                    Text(vm.drink?.name ?? "Choose a drink")
-                        .font(FTType.body(15))
-                        .foregroundStyle(vm.drink == nil ? FTColor.inkMuted : FTColor.ink)
-                    Spacer()
-                    Image(systemName: "chevron.down").foregroundStyle(FTColor.inkFaint)
+        }
+        .padding(FTSpace.md)
+        .background(FTColor.surface)
+        .clipShape(RoundedRectangle(cornerRadius: FTRadius.md))
+        .padding(.horizontal, FTSpace.xl)
+        .padding(.vertical, FTSpace.sm)
+    }
+}
+
+private struct DrinkPickerSheet: View {
+    let drinks: [Drink]
+    @Binding var selection: Drink?
+    @Environment(\.dismiss) private var dismiss
+    @State private var query: String = ""
+    @State private var category: String?
+
+    private var categories: [String] {
+        let set = Set(drinks.map(\.category))
+        return Array(set).sorted()
+    }
+
+    private var filtered: [Drink] {
+        var list = drinks
+        if let category {
+            list = list.filter { $0.category == category }
+        }
+        if !query.isEmpty {
+            let q = query.lowercased()
+            list = list.filter {
+                $0.name.lowercased().contains(q)
+                    || ($0.brand?.lowercased().contains(q) ?? false)
+                    || ($0.subtype?.lowercased().contains(q) ?? false)
+                    || $0.category.lowercased().contains(q)
+            }
+        }
+        return list
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                FTColor.background.ignoresSafeArea()
+                VStack(spacing: 0) {
+                    searchBar
+                    if !categories.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                categoryChip(label: "All", isSelected: category == nil) {
+                                    category = nil
+                                }
+                                ForEach(categories, id: \.self) { c in
+                                    categoryChip(label: c.capitalized, isSelected: category == c) {
+                                        category = (category == c ? nil : c)
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, FTSpace.xl)
+                        }
+                        .padding(.bottom, FTSpace.sm)
+                    }
+                    List {
+                        ForEach(filtered) { drink in
+                            Button {
+                                HapticsService.shared.tap()
+                                selection = drink
+                                dismiss()
+                            } label: {
+                                HStack(spacing: FTSpace.md) {
+                                    Image(systemName: "wineglass.fill")
+                                        .foregroundStyle(FTColor.gold.opacity(0.7))
+                                        .frame(width: 20)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(drink.name)
+                                            .font(FTType.body(15, weight: .medium))
+                                            .foregroundStyle(FTColor.ink)
+                                        HStack(spacing: 6) {
+                                            if let brand = drink.brand {
+                                                Text(brand)
+                                                    .font(FTType.caption(11))
+                                                    .foregroundStyle(FTColor.inkMuted)
+                                                Text("·").foregroundStyle(FTColor.inkFaint)
+                                            }
+                                            Text(drink.subtype ?? drink.category.capitalized)
+                                                .font(FTType.caption(11))
+                                                .foregroundStyle(FTColor.inkFaint)
+                                        }
+                                    }
+                                    Spacer()
+                                    if selection?.id == drink.id {
+                                        Image(systemName: "checkmark")
+                                            .foregroundStyle(FTColor.gold)
+                                    }
+                                }
+                                .padding(.vertical, 4)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .listRowBackground(FTColor.background)
+                            .listRowSeparatorTint(FTColor.divider)
+                        }
+                    }
+                    .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
+                }
+            }
+            .navigationTitle("Choose your drink")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                        .foregroundStyle(FTColor.inkMuted)
                 }
             }
         }
+    }
+
+    private var searchBar: some View {
+        HStack(spacing: FTSpace.sm) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(FTColor.inkFaint)
+            TextField("Name, brand, style", text: $query)
+                .textInputAutocapitalization(.words)
+                .autocorrectionDisabled(true)
+                .foregroundStyle(FTColor.ink)
+            if !query.isEmpty {
+                Button { query = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(FTColor.inkFaint)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(FTSpace.md)
+        .background(FTColor.surface)
+        .clipShape(RoundedRectangle(cornerRadius: FTRadius.md))
+        .padding(.horizontal, FTSpace.xl)
+        .padding(.vertical, FTSpace.sm)
+    }
+
+    private func categoryChip(label: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(FTType.caption(12, weight: .semibold))
+                .foregroundStyle(isSelected ? FTColor.background : FTColor.ink)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 7)
+                .background(isSelected ? FTColor.gold : FTColor.surface)
+                .clipShape(Capsule())
+                .overlay(
+                    Capsule().stroke(
+                        isSelected ? .clear : FTColor.divider,
+                        lineWidth: FTStroke.thin
+                    )
+                )
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -693,7 +1208,7 @@ private struct VibeStep: View {
             StepHeader(
                 eyebrow: "The vibe",
                 title: "Set the room.",
-                subtitle: "Your default ambient mix and how you show up."
+                subtitle: "How the lounge sounds when you walk in, and how visible you want to be. Tweak any time."
             )
 
             VStack(alignment: .leading, spacing: FTSpace.sm) {
@@ -760,9 +1275,9 @@ private struct NotificationsStep: View {
     var body: some View {
         VStack(alignment: .leading, spacing: FTSpace.lg) {
             StepHeader(
-                eyebrow: "Stay in touch",
-                title: "Your chair is ready.",
-                subtitle: "We'll send a single quiet ping at your usual time. Nothing more, nothing else."
+                eyebrow: "Last thing",
+                title: "One quiet ping a night.",
+                subtitle: "We'll tap you on the shoulder at your usual time — never spam, never marketing. You can turn it off in Settings any time."
             )
 
             FTCard(elevated: true) {
@@ -808,116 +1323,164 @@ private struct ReadyStep: View {
         VStack(alignment: .leading, spacing: FTSpace.lg) {
             StepHeader(
                 eyebrow: "Your chair",
-                title: "Take your seat.",
-                subtitle: "Take a breath. Step in."
+                title: "Everything's ready.",
+                subtitle: "One more breath. Then step inside."
             )
 
+            // Identity card — avatar + name centered, location row beneath.
             FTCard(elevated: true) {
-                HStack(spacing: FTSpace.md) {
-                    if let url = vm.avatarURL {
-                        AsyncImage(url: url) { phase in
-                            if case .success(let image) = phase {
-                                image.resizable().scaledToFill()
-                            } else {
-                                Circle().fill(FTColor.surfaceHi)
-                            }
-                        }
-                        .frame(width: 56, height: 56)
+                VStack(spacing: FTSpace.md) {
+                    avatar
+                        .frame(width: 84, height: 84)
                         .clipShape(Circle())
-                        .overlay(Circle().stroke(FTColor.gold.opacity(0.5), lineWidth: 1))
-                    } else {
-                        ZStack {
-                            Circle().fill(FTColor.surfaceHi)
-                            Text(initials)
-                                .font(FTType.caption(15, weight: .semibold))
-                                .foregroundStyle(FTColor.inkMuted)
-                        }
-                        .frame(width: 56, height: 56)
-                        .overlay(Circle().stroke(FTColor.gold.opacity(0.5), lineWidth: 1))
-                    }
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("PROFILE")
-                            .font(FTType.caption(10, weight: .semibold))
-                            .foregroundStyle(FTColor.gold)
-                            .tracking(1.4)
+                        .overlay(Circle().stroke(FTColor.gold.opacity(0.6), lineWidth: 1))
+                        .shadow(color: FTColor.goldGlow.opacity(0.4), radius: 18)
+
+                    VStack(spacing: 4) {
                         Text(vm.displayName.isEmpty ? "—" : vm.displayName)
-                            .font(FTType.heading(20))
+                            .font(FTType.heading(22, weight: .semibold))
+                            .foregroundStyle(FTColor.ink)
                         if !vm.handle.isEmpty {
                             Text("@\(vm.handle)")
                                 .font(FTType.caption(12))
                                 .foregroundStyle(FTColor.inkMuted)
                         }
-                        if !vm.city.isEmpty {
-                            Text(vm.city)
+                    }
+
+                    if hasLocation {
+                        HStack(spacing: 6) {
+                            Image(systemName: "mappin.and.ellipse")
+                                .font(.system(size: 11))
+                                .foregroundStyle(FTColor.gold.opacity(0.8))
+                            Text(locationLine)
                                 .font(FTType.caption(12))
-                                .foregroundStyle(FTColor.inkFaint)
+                                .foregroundStyle(FTColor.inkMuted)
                         }
                     }
-                    Spacer()
                 }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, FTSpace.xs)
             }
 
-            FTCard {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("THE USUAL")
-                        .font(FTType.caption(10, weight: .semibold))
-                        .foregroundStyle(FTColor.gold)
-                        .tracking(1.4)
-                    Text(timeString)
-                        .font(FTType.body(15, weight: .medium))
-                    if let cigar = vm.cigar {
-                        Text(cigar.displayName)
-                            .font(FTType.caption(12))
-                            .foregroundStyle(FTColor.inkMuted)
-                    }
-                    if let drink = vm.drink {
-                        Text(drink.name)
-                            .font(FTType.caption(12))
-                            .foregroundStyle(FTColor.inkFaint)
-                    }
-                }
+            // Two-column summary: ritual on the left, vibe on the right.
+            HStack(alignment: .top, spacing: FTSpace.sm) {
+                summaryTile(
+                    eyebrow: "RITUAL",
+                    icon: "flame.fill",
+                    primary: timeString,
+                    lines: ritualLines
+                )
+                summaryTile(
+                    eyebrow: "VIBE",
+                    icon: "speaker.wave.2.fill",
+                    primary: vm.audioTheme.displayName,
+                    lines: vibeLines
+                )
             }
 
-            FTCard {
-                HStack(spacing: FTSpace.sm) {
-                    Image(systemName: "speaker.wave.2.fill")
-                        .foregroundStyle(FTColor.gold)
-                    Text(vm.audioTheme.displayName)
-                        .font(FTType.body(14))
-                    Spacer()
-                    if vm.ghostModeDefault {
-                        chip("ghost")
-                    }
-                    if vm.voiceEnabled {
-                        chip("voice")
-                    }
-                    if vm.didRequestNotifications && vm.notificationsGranted {
-                        chip("reminders")
-                    }
+            // Closing line — sets the tone before the CTA.
+            Text("The door's open. Take your time.")
+                .font(FTType.body(14))
+                .foregroundStyle(FTColor.inkFaint)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.top, FTSpace.xs)
+                .italic()
+        }
+    }
+
+    @ViewBuilder
+    private var avatar: some View {
+        if let url = vm.avatarURL {
+            AsyncImage(url: url) { phase in
+                if case .success(let image) = phase {
+                    image.resizable().scaledToFill()
+                } else {
+                    Circle().fill(FTColor.surfaceHi)
                 }
+            }
+        } else {
+            ZStack {
+                Circle().fill(FTColor.surfaceHi)
+                Text(initials)
+                    .font(FTType.heading(24, weight: .semibold))
+                    .foregroundStyle(FTColor.gold.opacity(0.8))
             }
         }
     }
 
+    private func summaryTile(
+        eyebrow: String,
+        icon: String,
+        primary: String,
+        lines: [String]
+    ) -> some View {
+        FTCard {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    Image(systemName: icon)
+                        .font(.system(size: 11))
+                        .foregroundStyle(FTColor.gold)
+                    Text(eyebrow)
+                        .font(FTType.caption(10, weight: .semibold))
+                        .foregroundStyle(FTColor.gold)
+                        .tracking(1.4)
+                }
+                Text(primary)
+                    .font(FTType.body(15, weight: .medium))
+                    .foregroundStyle(FTColor.ink)
+                ForEach(lines, id: \.self) { line in
+                    Text(line)
+                        .font(FTType.caption(11))
+                        .foregroundStyle(FTColor.inkMuted)
+                        .lineLimit(1)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
     private var timeString: String {
-        vm.preferredTime.formatted(date: .omitted, time: .shortened)
+        vm.enableUsualReminder
+            ? vm.preferredTime.formatted(date: .omitted, time: .shortened)
+            : "Whenever"
+    }
+
+    private var ritualLines: [String] {
+        var out: [String] = []
+        if let cigar = vm.cigar { out.append(cigar.displayName) }
+        if let drink = vm.drink { out.append(drink.name) }
+        if out.isEmpty { out.append("We'll learn your taste") }
+        return out
+    }
+
+    private var vibeLines: [String] {
+        var out: [String] = []
+        if vm.ghostModeDefault { out.append("Ghost by default") }
+        if vm.voiceEnabled { out.append("Voice rooms enabled") }
+        if vm.didRequestNotifications && vm.notificationsGranted {
+            out.append("Reminders on")
+        }
+        if out.isEmpty { out.append("Quiet & visible") }
+        return out
+    }
+
+    private var locationLine: String {
+        let countryName = vm.country.flatMap {
+            Locale.current.localizedString(forRegionCode: $0)
+        }
+        return [vm.city.isEmpty ? nil : vm.city, countryName]
+            .compactMap { $0 }
+            .joined(separator: ", ")
+    }
+
+    private var hasLocation: Bool {
+        !vm.city.isEmpty || vm.country != nil
     }
 
     private var initials: String {
         let parts = vm.displayName.split(separator: " ").prefix(2)
         let s = parts.compactMap { $0.first.map(String.init) }.joined()
         return s.isEmpty ? "··" : s.uppercased()
-    }
-
-    private func chip(_ text: String) -> some View {
-        Text(text.uppercased())
-            .font(FTType.caption(9, weight: .semibold))
-            .tracking(1.2)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(FTColor.surfaceHi)
-            .clipShape(Capsule())
-            .foregroundStyle(FTColor.inkMuted)
     }
 }
 

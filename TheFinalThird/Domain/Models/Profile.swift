@@ -7,8 +7,10 @@ struct Profile: Identifiable, Hashable, Sendable, Codable {
     var handle: String?
     var avatarURL: URL?
     var bio: String?
+    /// ISO 3166-1 alpha-2 country code (e.g. "HN", "US", "JP").
+    var country: String?
     var city: String?
-    var isHondurasLocal: Bool
+    var isLocal: Bool
     var isPremium: Bool
     var audioTheme: AudioTheme?
     var voiceEnabled: Bool
@@ -22,6 +24,13 @@ struct Profile: Identifiable, Hashable, Sendable, Codable {
     var initials: String {
         let parts = displayName.split(separator: " ").prefix(2)
         return parts.compactMap { $0.first.map(String.init) }.joined().uppercased()
+    }
+
+    /// Localized country name (e.g. "United States" for "US"). Uses the
+    /// device's current locale.
+    var countryName: String? {
+        guard let country else { return nil }
+        return Locale.current.localizedString(forRegionCode: country)
     }
 }
 

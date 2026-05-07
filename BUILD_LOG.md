@@ -489,6 +489,30 @@ Required files in `TheFinalThird/Resources/Sounds/` (256 kbps AAC, seamless loop
 
 ---
 
+## 2026-05-07 — Onboarding world-class pass (round 2)
+
+**User feedback addressed**
+
+- Welcome + intro carousel were never visible because both screens used `Spacer()` inside the outer `ScrollView`, which collapses spacers to zero. Restructured `OnboardingView.content`: welcome and intro now render full-bleed in a fixed `VStack(maxHeight: .infinity)`, while only the form-heavy setup screens sit inside a `ScrollView`. Welcome also gained a second copy line under the headline so the first screen doesn't feel empty.
+- Step 2 (location) was Honduras-hardcoded. Replaced with a worldwide `CountryPickerSheet` driven by `Locale.Region.isoRegions`, sorted by localized name, with a flag emoji (regional indicator math) and live search. The viewmodel seeds `country` from `Locale.current.region?.identifier` so most users only need to confirm. The "I'm a local" toggle is now generic ("I live here year-round") and surfaces local lounges/hosts/events instead of being country-specific. City placeholder rotates to a sensible example based on the selected country.
+- Step 3 (the usual) replaced the giant `Menu` cigar/drink lists with proper `CigarPickerSheet` + `DrinkPickerSheet` — large detents, sticky search bar, category chips for drinks, brand/line/vitola/country search across cigars. Picker rows show the right secondary metadata so the user can tell two similar cigars apart at a glance. "Clear" buttons restore the empty state.
+- Step 5 (recap) was reflowed: avatar centered with breathing gold ring, identity stacked under it, location pill, then a 2-up grid (RITUAL · VIBE) showing time / cigar / drink alongside ambience / privacy. Closes with "The door's open. Take your time." in italic before the CTA.
+- Copy pass across Welcome, Name, Avatar, Location, Usual, Vibe, Notifications — every subtitle now describes *why* this step matters rather than what it does. New users see emotional, specific language ("Cuban purist. Old fashioneds. Late nights.", "One quiet ping a night", "How the lounge sounds when you walk in").
+
+**Schema + model migration**
+
+- Migration `0009_profiles_country.sql` (already applied via MCP): `add column country text` + `rename is_honduras_local → is_local`.
+- `Profile`, `DTO.Profile`, `DTO.Profile.toDomain`, `LiveProfileRepository.upsert` updated to carry `country: String?` + `isLocal: Bool`. `Profile.countryName` computed from `Locale.current.localizedString(forRegionCode:)`.
+- `OnboardingViewModel`: dropped `isHondurasLocal`, added `country` (region-seeded) + `isLocal`.
+- `DTOMapperTests` updated for the renamed columns + new `country` field.
+
+**Why this matters**
+
+- The intro carousel was the entire emotional pitch for the app — users skipping straight from Welcome to Name never heard "not a feed, a place / every cigar deserves an entrance / a library of your nights". That bug was load-bearing for first-impression conversion.
+- Worldwide country support unblocks the user (in Honduras / Roatán) and every non-HN tester. Without it the app silently signaled "this isn't built for you".
+
+---
+
 ## Open items (final polish)
 
 - Drop in licensed audio assets per the spec above; verify ambient loops are seamless across AirPods route changes.
