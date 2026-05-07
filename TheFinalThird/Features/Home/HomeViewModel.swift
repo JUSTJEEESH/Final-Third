@@ -4,10 +4,21 @@ import Observation
 @MainActor
 @Observable
 final class HomeViewModel {
+    enum TonightsPickSource: Sendable, Equatable {
+        case liveDrop
+        case upcomingDrop(daysAway: Int)
+        case dailyFeatured
+    }
+
     var profile: Profile?
     var usual: Usual?
     var usualCigar: Cigar?
+    var usualDrink: Drink?
+    /// The cigar shown in Tonight's Pick. Never the user's Usual —
+    /// that's Your Ritual's job. Falls through live drop → upcoming
+    /// drop → daily-rotating featured cigar from the catalog.
     var tonightsPick: Cigar?
+    var tonightsPickSource: TonightsPickSource?
     var activeRooms: [Room] = []
     var currentDrop: CigarDrop?
     var dropCigar: Cigar?
@@ -22,6 +33,7 @@ final class HomeViewModel {
     private let profiles: ProfileRepository
     private let usuals: UsualRepository
     private let cigars: CigarRepository
+    private let drinks: DrinkRepository
     private let rooms: RoomRepository
     private let drops: DropRepository
     private let events: EventRepository
@@ -32,6 +44,7 @@ final class HomeViewModel {
         profiles: ProfileRepository = LiveProfileRepository(),
         usuals: UsualRepository = LiveUsualRepository(),
         cigars: CigarRepository = LiveCigarRepository(),
+        drinks: DrinkRepository = LiveDrinkRepository(),
         rooms: RoomRepository = LiveRoomRepository(),
         drops: DropRepository = LiveDropRepository(),
         events: EventRepository = LiveEventRepository(),
@@ -41,6 +54,7 @@ final class HomeViewModel {
         self.profiles = profiles
         self.usuals = usuals
         self.cigars = cigars
+        self.drinks = drinks
         self.rooms = rooms
         self.drops = drops
         self.events = events
@@ -74,6 +88,9 @@ final class HomeViewModel {
         if let cigarID = usual?.cigarID {
             usualCigar = try? await cigars.fetch(id: cigarID)
         }
+        if let drinkID = usual?.drinkID {
+            usualDrink = try? await drinks.fetch(id: drinkID)
+        }
 
         let allRooms = (try? await roomsTask) ?? []
         activeRooms = Array(allRooms.prefix(4))
@@ -93,9 +110,23 @@ final class HomeViewModel {
         let city = profile?.city
         nearbyEvents = (try? await events.upcoming(city: city, limit: 3)) ?? []
 
-        // Tonight's Pick fallback chain: the user's Usual cigar takes
-        // precedence; then a live drop; then an upcoming drop so the
-        // section always has something to show.
-        tonightsPick = usualCigar ?? dropCigar ?? upcomingDropCigar
+        // Tonight's Pick is a *suggestion* — never the user's Usual
+        // (that lives in Your Ritual). Live drop > upcoming drop >
+        // daily-rotating featured cigar from the catalog so the slot
+        // always has fresh editorial content.
+        if let dropCigar {
+            tonightsPick = dropCigar
+            tonightsPickSource = .liveDrop
+        } else if let upcomingDropCigar, let upcoming = upcomingDrop {
+            tonightsPick = upcomingDropCigar
+            let days = Calendar.current.dateComponents(
+                [.day], from: .now, to: upcoming.startsAt
+            ).day ?? 0
+            tonightsPickSource = .upcomingDrop(daysAway: max(days, 0))
+        } else {
+            // Daily featured — deterministic per calendar day.
+            tonightsPick = try? await cigars.featured(forDay: .now)
+            if tonightsPick != nil { tonightsPickSource = .dailyFeatured }
+        }
     }
 }

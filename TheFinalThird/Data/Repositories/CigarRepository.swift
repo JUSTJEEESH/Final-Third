@@ -11,6 +11,7 @@ struct CigarFilters: Sendable, Equatable {
 protocol CigarRepository: Sendable {
     func search(_ filters: CigarFilters, limit: Int) async throws -> [Cigar]
     func fetch(id: UUID) async throws -> Cigar
+    func featured(forDay date: Date) async throws -> Cigar?
     func submitPending(brand: String, line: String, vitola: String?, country: String?) async throws
 }
 
@@ -52,6 +53,29 @@ struct LiveCigarRepository: CigarRepository {
             .execute()
             .value
         return dto.toDomain()
+    }
+
+    /// Returns a deterministic cigar for the given calendar day. The
+    /// catalog rotates one entry per day-of-year, so the same date
+    /// always yields the same cigar (until the catalog changes), and
+    /// every day surfaces something different.
+    ///
+    /// Used by Home → Tonight's Pick when there's no live drop, no
+    /// upcoming drop, and the user has no Usual cigar set.
+    func featured(forDay date: Date = .now) async throws -> Cigar? {
+        struct CountRow: Decodable, Sendable { let id: UUID }
+        let allIDs: [CountRow] = try await client
+            .from("cigars")
+            .select("id")
+            .eq("is_archived", value: false)
+            .order("id", ascending: true)
+            .execute()
+            .value
+        guard !allIDs.isEmpty else { return nil }
+
+        let day = Calendar.current.ordinality(of: .day, in: .year, for: date) ?? 1
+        let index = (day - 1) % allIDs.count
+        return try await fetch(id: allIDs[index].id)
     }
 
     func submitPending(brand: String, line: String, vitola: String?, country: String?) async throws {

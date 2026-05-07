@@ -53,11 +53,16 @@ struct HomeView: View {
                 )
                 lightUpButton
                 if let cigar = vm.tonightsPick {
-                    TonightsPick(cigar: cigar)
+                    TonightsPick(cigar: cigar, source: vm.tonightsPickSource)
                 } else {
                     TonightsPickPlaceholder { showUsualEditor = true }
                 }
-                if let usual = vm.usual { YourRitual(usual: usual, cigar: vm.usualCigar) }
+                YourRitual(
+                    usual: vm.usual,
+                    cigar: vm.usualCigar,
+                    drink: vm.usualDrink,
+                    onTap: { showUsualEditor = true }
+                )
                 if let drop = vm.currentDrop, let cigar = vm.dropCigar {
                     DropOfTheWeek(drop: drop, cigar: cigar)
                 } else if let upcoming = vm.upcomingDrop, let cigar = vm.upcomingDropCigar {
@@ -138,6 +143,7 @@ private struct Greeting: View {
 
 private struct TonightsPick: View {
     let cigar: Cigar
+    let source: HomeViewModel.TonightsPickSource?
 
     var body: some View {
         VStack(alignment: .leading, spacing: FTSpace.sm) {
@@ -174,10 +180,22 @@ private struct TonightsPick: View {
 
                     HStack(alignment: .center) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(cigar.brand.uppercased())
-                                .font(FTType.caption(10, weight: .semibold))
-                                .foregroundStyle(FTColor.gold)
-                                .tracking(2)
+                            HStack(spacing: 8) {
+                                Text(cigar.brand.uppercased())
+                                    .font(FTType.caption(10, weight: .semibold))
+                                    .foregroundStyle(FTColor.gold)
+                                    .tracking(2)
+                                if let badge = sourceBadge {
+                                    Text(badge)
+                                        .font(FTType.caption(9, weight: .semibold))
+                                        .tracking(1.4)
+                                        .foregroundStyle(FTColor.inkInverse)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(FTColor.gold)
+                                        .clipShape(Capsule())
+                                }
+                            }
                             Text(cigar.line)
                                 .font(FTType.display(24, weight: .semibold))
                                 .foregroundStyle(FTColor.ink)
@@ -221,6 +239,26 @@ private struct TonightsPick: View {
                 )
                 .shadow(color: .black.opacity(0.45), radius: 12, x: 0, y: 6)
             }.buttonStyle(.plain)
+        }
+    }
+
+    /// Small gold tag describing why this cigar was chosen — gives the
+    /// section editorial weight instead of feeling random.
+    private var sourceBadge: String? {
+        switch source {
+        case .liveDrop: return "LIVE DROP"
+        case .upcomingDrop(let daysAway):
+            if daysAway <= 0 { return "TODAY" }
+            if daysAway == 1 { return "TOMORROW" }
+            if daysAway < 7 {
+                let weekday = Calendar.current.date(
+                    byAdding: .day, value: daysAway, to: .now
+                )?.formatted(.dateTime.weekday(.wide)) ?? ""
+                return weekday.uppercased()
+            }
+            return "COMING SOON"
+        case .dailyFeatured: return "FEATURED TONIGHT"
+        case .none: return nil
         }
     }
 
@@ -294,32 +332,120 @@ private struct TonightsPickPlaceholder: View {
 }
 
 private struct YourRitual: View {
-    let usual: Usual
+    let usual: Usual?
     let cigar: Cigar?
+    let drink: Drink?
+    let onTap: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: FTSpace.sm) {
             sectionTitle("Your Ritual")
-            FTCard {
-                VStack(alignment: .leading, spacing: 4) {
-                    if let time = usual.preferredTime {
-                        Text(timeString(time))
-                            .font(FTType.caption(11, weight: .semibold))
-                            .foregroundStyle(FTColor.gold)
+            Button(action: onTap) {
+                ZStack(alignment: .topLeading) {
+                    RoundedRectangle(cornerRadius: FTRadius.lg, style: .continuous)
+                        .fill(FTColor.surface)
+                    TexturePanel(texture: .leather, opacity: 0.18, zoom: 1.4)
+                        .clipShape(RoundedRectangle(cornerRadius: FTRadius.lg,
+                                                    style: .continuous))
+
+                    HStack(alignment: .top, spacing: FTSpace.lg) {
+                        // Time block — display serif, big.
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("YOUR USUAL")
+                                .font(FTType.caption(9, weight: .semibold))
+                                .tracking(1.6)
+                                .foregroundStyle(FTColor.gold.opacity(0.8))
+                            Text(timeText)
+                                .font(FTType.display(28, weight: .semibold))
+                                .foregroundStyle(FTColor.ink)
+                            HStack(spacing: 4) {
+                                Image(systemName: reminderIcon)
+                                    .font(.system(size: 10))
+                                Text(reminderText)
+                                    .font(FTType.caption(10, weight: .medium))
+                            }
+                            .foregroundStyle(reminderColor)
+                            .padding(.top, 4)
+                        }
+                        .frame(width: 110, alignment: .leading)
+
+                        // Vertical divider — gold thread.
+                        Rectangle()
+                            .fill(LinearGradient(
+                                colors: [.clear, FTColor.gold.opacity(0.4), .clear],
+                                startPoint: .top, endPoint: .bottom
+                            ))
+                            .frame(width: 1)
+                            .frame(maxHeight: .infinity)
+                            .padding(.vertical, 4)
+
+                        // Cigar + drink stack.
+                        VStack(alignment: .leading, spacing: 8) {
+                            ritualLine(
+                                icon: "leaf",
+                                label: cigarLabel,
+                                placeholder: "Pick a cigar"
+                            )
+                            ritualLine(
+                                icon: "wineglass",
+                                label: drinkLabel,
+                                placeholder: "Optional pour"
+                            )
+                        }
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.right")
+                            .foregroundStyle(FTColor.inkFaint)
+                            .padding(.top, 2)
                     }
-                    Text(cigar?.displayName ?? "Set your usual")
-                        .font(FTType.body(15, weight: .medium))
-                    Text(usual.enabled ? "We'll remind you." : "Reminders off.")
-                        .font(FTType.caption(11)).foregroundStyle(FTColor.inkMuted)
+                    .padding(FTSpace.lg)
                 }
+                .overlay(
+                    RoundedRectangle(cornerRadius: FTRadius.lg, style: .continuous)
+                        .stroke(FTColor.divider, lineWidth: FTStroke.hairline)
+                )
+                .shadow(color: .black.opacity(0.30), radius: 8, x: 0, y: 4)
             }
+            .buttonStyle(.plain)
         }
     }
 
-    private func timeString(_ t: TimeOfDay) -> String {
-        var components = DateComponents(); components.hour = t.hour; components.minute = t.minute
-        let date = Calendar.current.date(from: components) ?? .now
-        return date.formatted(date: .omitted, time: .shortened).uppercased()
+    @ViewBuilder
+    private func ritualLine(icon: String, label: String?, placeholder: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .foregroundStyle(label == nil ? FTColor.inkFaint : FTColor.gold)
+                .font(.system(size: 12))
+                .frame(width: 14)
+            Text(label ?? placeholder)
+                .font(FTType.body(14, weight: label == nil ? .regular : .medium))
+                .foregroundStyle(label == nil ? FTColor.inkFaint : FTColor.ink)
+                .lineLimit(1)
+        }
+    }
+
+    private var timeText: String {
+        guard let t = usual?.preferredTime else { return "—:—" }
+        var c = DateComponents(); c.hour = t.hour; c.minute = t.minute
+        let date = Calendar.current.date(from: c) ?? .now
+        return date.formatted(date: .omitted, time: .shortened)
+    }
+
+    private var cigarLabel: String? { cigar?.displayName }
+    private var drinkLabel: String? { drink?.name }
+
+    private var reminderIcon: String {
+        guard let usual else { return "bell.slash" }
+        return usual.enabled ? "bell.fill" : "bell.slash"
+    }
+
+    private var reminderText: String {
+        guard let usual else { return "Set your ritual" }
+        return usual.enabled ? "Reminder on" : "Reminder off"
+    }
+
+    private var reminderColor: Color {
+        guard let usual else { return FTColor.inkMuted }
+        return usual.enabled ? FTColor.gold : FTColor.inkMuted
     }
 }
 

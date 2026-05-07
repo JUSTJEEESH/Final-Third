@@ -77,5 +77,6 @@ private struct StubCigarRepo: CigarRepository {
               strength: nil, flavorNotes: [], originStory: nil, affiliateLink: nil,
               imageURL: nil, funFact: nil)
     }
+    func featured(forDay date: Date) async throws -> Cigar? { nil }
     func submitPending(brand: String, line: String, vitola: String?, country: String?) async throws {}
 }
