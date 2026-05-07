@@ -41,8 +41,11 @@ struct HomeView: View {
     private func content(_ vm: HomeViewModel) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: FTSpace.lg) {
-                Greeting(name: vm.profile?.displayName, greeting: vm.greeting,
-                         streak: vm.usual?.streakCount ?? 0)
+                Greeting(
+                    name: vm.profile?.displayName,
+                    streak: vm.usual?.streakCount ?? 0,
+                    hasUsual: vm.usual?.cigarID != nil
+                )
                 lightUpButton
                 if let cigar = vm.tonightsPick { TonightsPick(cigar: cigar) }
                 if let usual = vm.usual { YourRitual(usual: usual, cigar: vm.usualCigar) }
@@ -103,10 +106,9 @@ struct HomeView: View {
 
 private struct Greeting: View {
     let name: String?
-    let greeting: String
     let streak: Int
+    let hasUsual: Bool
 
-    /// First name only — feels personal without ever sounding formal.
     private var firstName: String? {
         guard let name else { return nil }
         return name.split(separator: " ").first.map(String.init)
@@ -114,18 +116,11 @@ private struct Greeting: View {
 
     var body: some View {
         HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(greeting)
-                    .font(FTType.display(28))
-                    .foregroundStyle(FTColor.gold)
-                if let firstName {
-                    Text(firstName)
-                        .font(FTType.display(38, weight: .semibold))
-                        .foregroundStyle(FTColor.ink)
-                        .padding(.top, 2)
-                }
-            }
-            Spacer()
+            GreetingLine(
+                copy: GreetingCopy.make(streak: streak, hasUsual: hasUsual),
+                firstName: firstName
+            )
+            Spacer(minLength: FTSpace.md)
             if streak > 0 { EmberBadge(streakCount: streak) }
         }
         .padding(.top, FTSpace.lg)
@@ -139,33 +134,96 @@ private struct TonightsPick: View {
         VStack(alignment: .leading, spacing: FTSpace.sm) {
             sectionTitle("Tonight's Pick")
             NavigationLink(value: AppRoute.cigar(cigar.id)) {
-                FTCard(elevated: true,
-                       texture: .tobaccoLeaf,
-                       textureIntensity: 0.20,
-                       textureZoom: 1.6) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(cigar.brand.uppercased())
-                                .font(FTType.caption(11, weight: .semibold))
-                                .foregroundStyle(FTColor.gold).tracking(1.4)
-                            Text(cigar.line).font(FTType.heading(20))
-                            if let v = cigar.vitola {
-                                Text(v).font(FTType.caption(12)).foregroundStyle(FTColor.inkMuted)
-                            }
-                        }
+                ZStack(alignment: .topLeading) {
+                    // Card surface — tobacco leaf texture as the wrapper
+                    // motif, slight gold inner gloss to lift the corners.
+                    RoundedRectangle(cornerRadius: FTRadius.lg, style: .continuous)
+                        .fill(FTColor.surfaceHi)
+                    TexturePanel(texture: .tobaccoLeaf, opacity: 0.32, zoom: 1.8)
+                        .clipShape(RoundedRectangle(cornerRadius: FTRadius.lg,
+                                                    style: .continuous))
+                    // Warm ember glow seeping in from the right where
+                    // the flame icon sits.
+                    RadialGradient(
+                        colors: [FTColor.ember.opacity(0.35), .clear],
+                        center: UnitPoint(x: 1.0, y: 0.5),
+                        startRadius: 10, endRadius: 220
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: FTRadius.lg,
+                                                style: .continuous))
+
+                    // Gold leaf top hairline — feels embossed.
+                    VStack {
+                        LinearGradient(
+                            colors: [.clear, FTColor.gold.opacity(0.6), .clear],
+                            startPoint: .leading, endPoint: .trailing
+                        )
+                        .frame(height: 1)
+                        .padding(.horizontal, 16)
                         Spacer()
+                    }
+
+                    HStack(alignment: .center) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(cigar.brand.uppercased())
+                                .font(FTType.caption(10, weight: .semibold))
+                                .foregroundStyle(FTColor.gold)
+                                .tracking(2)
+                            Text(cigar.line)
+                                .font(FTType.display(24, weight: .semibold))
+                                .foregroundStyle(FTColor.ink)
+                                .lineLimit(2)
+                                .fixedSize(horizontal: false, vertical: true)
+                            if let v = cigar.vitola {
+                                Text(v)
+                                    .font(FTType.caption(12))
+                                    .foregroundStyle(FTColor.inkMuted)
+                            }
+                            HStack(spacing: FTSpace.sm) {
+                                if let country = cigar.country {
+                                    metaChip(country)
+                                }
+                                if let wrapper = cigar.wrapper {
+                                    metaChip(wrapper)
+                                }
+                                if let s = cigar.strength,
+                                   let label = Cigar.Strength(rawValue: s)?.label {
+                                    metaChip(label)
+                                }
+                            }
+                            .padding(.top, 4)
+                        }
+                        Spacer(minLength: FTSpace.md)
                         Image(systemName: "flame.fill")
                             .foregroundStyle(LinearGradient(
-                                colors: [FTColor.emberCore, FTColor.ember],
+                                colors: [FTColor.emberCore, FTColor.emberHot, FTColor.ember],
                                 startPoint: .top, endPoint: .bottom
                             ))
-                            .font(.system(size: 28))
-                            .shadow(color: FTColor.ember.opacity(0.55),
-                                    radius: 10, x: 0, y: 0)
+                            .font(.system(size: 36))
+                            .shadow(color: FTColor.ember.opacity(0.7),
+                                    radius: 14, x: 0, y: 0)
                     }
+                    .padding(FTSpace.lg)
                 }
+                .frame(minHeight: 132)
+                .overlay(
+                    RoundedRectangle(cornerRadius: FTRadius.lg, style: .continuous)
+                        .stroke(FTColor.divider, lineWidth: FTStroke.hairline)
+                )
+                .shadow(color: .black.opacity(0.45), radius: 12, x: 0, y: 6)
             }.buttonStyle(.plain)
         }
+    }
+
+    private func metaChip(_ text: String) -> some View {
+        Text(text.uppercased())
+            .font(FTType.caption(9, weight: .semibold))
+            .tracking(1.2)
+            .foregroundStyle(FTColor.inkMuted)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(FTColor.surfaceLo.opacity(0.6))
+            .clipShape(Capsule())
     }
 }
 
@@ -238,24 +296,50 @@ private struct UpcomingDropTeaser: View {
     var body: some View {
         VStack(alignment: .leading, spacing: FTSpace.sm) {
             sectionTitle("Coming Soon")
-            FTCard {
-                HStack(spacing: FTSpace.md) {
-                    Image(systemName: "hourglass")
-                        .foregroundStyle(FTColor.gold)
-                        .font(.system(size: 22))
+            ZStack(alignment: .topLeading) {
+                RoundedRectangle(cornerRadius: FTRadius.lg, style: .continuous)
+                    .fill(FTColor.surface)
+                TexturePanel(texture: .leather, opacity: 0.18, zoom: 1.4)
+                    .clipShape(RoundedRectangle(cornerRadius: FTRadius.lg,
+                                                style: .continuous))
+
+                HStack(alignment: .center, spacing: FTSpace.md) {
+                    // Hourglass icon framed in a thin gold ring.
+                    ZStack {
+                        Circle()
+                            .stroke(FTColor.gold.opacity(0.65),
+                                    lineWidth: FTStroke.thin)
+                            .frame(width: 48, height: 48)
+                        Image(systemName: "hourglass")
+                            .foregroundStyle(FTColor.gold)
+                            .font(.system(size: 18, weight: .medium))
+                    }
+
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(cigar.brand.uppercased())
+                        Text(whenText.uppercased())
                             .font(FTType.caption(10, weight: .semibold))
-                            .foregroundStyle(FTColor.gold).tracking(1.2)
+                            .foregroundStyle(FTColor.gold)
+                            .tracking(1.6)
                         Text(cigar.line)
-                            .font(FTType.body(15, weight: .semibold))
-                        Text(whenText)
-                            .font(FTType.caption(11))
-                            .foregroundStyle(FTColor.inkMuted)
+                            .font(FTType.heading(18, weight: .semibold))
+                            .foregroundStyle(FTColor.ink)
+                        if let copy = drop.heroCopy {
+                            Text(copy)
+                                .font(FTType.caption(12))
+                                .foregroundStyle(FTColor.inkMuted)
+                                .lineLimit(2)
+                                .padding(.top, 2)
+                        }
                     }
                     Spacer()
                 }
+                .padding(FTSpace.lg)
             }
+            .overlay(
+                RoundedRectangle(cornerRadius: FTRadius.lg, style: .continuous)
+                    .stroke(FTColor.divider, lineWidth: FTStroke.hairline)
+            )
+            .shadow(color: .black.opacity(0.30), radius: 8, x: 0, y: 4)
         }
     }
 

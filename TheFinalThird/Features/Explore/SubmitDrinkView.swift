@@ -1,21 +1,21 @@
 import SwiftUI
 
-/// Lets a member submit a drink that isn't in the catalog. Mirrors
-/// SubmitCigarView. Goes into `drinks_pending` for moderator review.
+/// Lets a member submit a drink that isn't in the catalog. Captures the
+/// same Type / Brand / Name / Style shape as the live catalog so
+/// approved entries slot in cleanly.
 struct SubmitDrinkView: View {
     @Environment(\.dismiss) private var dismiss
 
-    @State private var name = ""
     @State private var category: String?
+    @State private var brand = ""
+    @State private var name = ""
     @State private var subtype = ""
     @State private var isSubmitting = false
     @State private var didSubmit = false
     @State private var error: String?
 
-    /// Categories that already exist in the catalog. We surface these as
-    /// the picker options so submissions stay consistent.
     private let categories = [
-        "whisky", "beer", "rum", "tequila", "mezcal", "cognac",
+        "beer", "whisky", "rum", "tequila", "mezcal", "cognac",
         "armagnac", "port", "sherry", "madeira", "amaro",
         "wine", "cocktail", "coffee", "tea", "non-alcoholic", "other",
     ]
@@ -56,10 +56,8 @@ struct SubmitDrinkView: View {
                     .font(FTType.body(14))
                     .foregroundStyle(FTColor.inkMuted)
 
-                FTField(title: "Name", text: $name, placeholder: "Lagavulin 16")
-
                 VStack(alignment: .leading, spacing: FTSpace.xs) {
-                    Text("CATEGORY")
+                    Text("TYPE")
                         .font(FTType.caption(11, weight: .semibold))
                         .foregroundStyle(FTColor.inkMuted).tracking(1)
                     Menu {
@@ -81,8 +79,10 @@ struct SubmitDrinkView: View {
                     }
                 }
 
-                FTField(title: "Subtype (optional)", text: $subtype,
-                        placeholder: "Islay single malt, Belgian Quadrupel, Doppelbock…")
+                FTField(title: "Brand", text: $brand, placeholder: "Modelo")
+                FTField(title: "Name", text: $name, placeholder: "Modelo Negra")
+                FTField(title: "Style (optional)", text: $subtype,
+                        placeholder: "Munich Dunkel")
 
                 if let error {
                     Text(error)
@@ -90,10 +90,13 @@ struct SubmitDrinkView: View {
                         .foregroundStyle(FTColor.danger)
                 }
 
-                Text("A moderator will review and add it to the catalog. You'll see it in Explore once approved.")
+                Text("Example: Type — Beer · Brand — Modelo · Name — Modelo Negra · Style — Munich Dunkel.")
                     .font(FTType.caption(11))
                     .foregroundStyle(FTColor.inkFaint)
                     .padding(.top, FTSpace.sm)
+                Text("A moderator will review and add it to the bar. You'll see it in Explore once approved.")
+                    .font(FTType.caption(11))
+                    .foregroundStyle(FTColor.inkFaint)
             }
             .padding(FTSpace.xl)
         }
@@ -126,9 +129,10 @@ struct SubmitDrinkView: View {
         isSubmitting = true; defer { isSubmitting = false }
         do {
             try await repo.submitPending(
+                brand: brand.isEmpty ? nil : brand.trimmingCharacters(in: .whitespaces),
                 name: name.trimmingCharacters(in: .whitespaces),
                 category: category,
-                subtype: subtype.isEmpty ? nil : subtype
+                subtype: subtype.isEmpty ? nil : subtype.trimmingCharacters(in: .whitespaces)
             )
             HapticsService.shared.success()
             didSubmit = true

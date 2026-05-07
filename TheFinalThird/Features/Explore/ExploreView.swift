@@ -215,9 +215,21 @@ private struct DrinkRow: View {
             HStack(spacing: FTSpace.md) {
                 CigarThumb(url: drink.imageURL)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(drink.category.uppercased())
-                        .font(FTType.caption(11, weight: .semibold))
-                        .foregroundStyle(FTColor.inkMuted)
+                    HStack(spacing: 6) {
+                        Text(drink.typeLabel)
+                            .font(FTType.caption(10, weight: .semibold))
+                            .foregroundStyle(FTColor.gold)
+                            .tracking(1.4)
+                        if let brand = drink.brand {
+                            Text("·")
+                                .font(FTType.caption(10, weight: .semibold))
+                                .foregroundStyle(FTColor.inkFaint)
+                            Text(brand.uppercased())
+                                .font(FTType.caption(10, weight: .semibold))
+                                .foregroundStyle(FTColor.inkMuted)
+                                .tracking(1.2)
+                        }
+                    }
                     Text(drink.name).font(FTType.body(16, weight: .medium))
                     if let s = drink.subtype {
                         Text(s).font(FTType.caption(12)).foregroundStyle(FTColor.inkMuted)
@@ -323,23 +335,37 @@ private struct FiltersSheet: View {
 
     @ViewBuilder
     private var drinkSections: some View {
-        Section("Category") {
-            Picker("Category", selection: $vm.selectedDrinkCategory) {
+        Section("Type") {
+            Picker("Type", selection: $vm.selectedDrinkCategory) {
                 Text("Any").tag(String?.none)
                 ForEach(drinkCategoryOptions, id: \.self) { c in
                     Text(c.capitalized).tag(String?.some(c))
                 }
             }
         }
-        Section("Subtype") {
-            TextField("e.g. Belgian Quadrupel, Islay single malt",
+        Section("Brand") {
+            if vm.availableDrinkBrands.isEmpty {
+                Text("Pick a type first to filter by brand.")
+                    .font(FTType.caption(11))
+                    .foregroundStyle(FTColor.inkMuted)
+            } else {
+                Picker("Brand", selection: $vm.selectedDrinkBrand) {
+                    Text("Any").tag(String?.none)
+                    ForEach(vm.availableDrinkBrands, id: \.self) { b in
+                        Text(b).tag(String?.some(b))
+                    }
+                }
+            }
+        }
+        Section("Style") {
+            TextField("e.g. Belgian Quadrupel, Islay single malt, Doppelbock",
                       text: Binding(
                           get: { vm.selectedDrinkSubtype ?? "" },
                           set: { vm.selectedDrinkSubtype = $0.isEmpty ? nil : $0 }
                       ))
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-            Text("Free text — partial match against existing entries.")
+            Text("Free text — partial match against existing styles.")
                 .font(FTType.caption(11))
                 .foregroundStyle(FTColor.inkMuted)
         }

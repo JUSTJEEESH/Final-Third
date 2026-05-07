@@ -19,9 +19,20 @@ final class ExploreViewModel {
     var selectedCountry: String?
 
     // Drink filters
-    var selectedDrinkCategory: String?
+    var selectedDrinkCategory: String? {
+        didSet {
+            // When the category changes, reset brand and reload the brand
+            // list scoped to the new category.
+            if oldValue != selectedDrinkCategory {
+                selectedDrinkBrand = nil
+                Task { await loadBrands() }
+            }
+        }
+    }
+    var selectedDrinkBrand: String?
     var selectedDrinkSubtype: String?
     private(set) var availableDrinkCategories: [String] = []
+    private(set) var availableDrinkBrands: [String] = []
 
     private(set) var cigars: [Cigar] = []
     private(set) var drinks: [Drink] = []
@@ -45,6 +56,12 @@ final class ExploreViewModel {
         if availableDrinkCategories.isEmpty {
             availableDrinkCategories = (try? await drinkRepo.categories()) ?? []
         }
+        await loadBrands()
+    }
+
+    func loadBrands() async {
+        availableDrinkBrands =
+            (try? await drinkRepo.brands(forCategory: selectedDrinkCategory)) ?? []
     }
 
     func refresh() async {
@@ -71,8 +88,12 @@ final class ExploreViewModel {
         selectedWrapper = nil
         selectedCountry = nil
         selectedDrinkCategory = nil
+        selectedDrinkBrand = nil
         selectedDrinkSubtype = nil
-        Task { await refresh() }
+        Task {
+            await loadBrands()
+            await refresh()
+        }
     }
 
     private func debouncedSearch() async {
@@ -97,6 +118,7 @@ final class ExploreViewModel {
         DrinkFilters(
             query: query,
             category: selectedDrinkCategory,
+            brand: selectedDrinkBrand,
             subtype: selectedDrinkSubtype.flatMap { $0.isEmpty ? nil : $0 }
         )
     }

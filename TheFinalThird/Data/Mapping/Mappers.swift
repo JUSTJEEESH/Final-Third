@@ -60,6 +60,7 @@ extension DTO.Drink {
     func toDomain() -> Drink {
         Drink(
             id: id,
+            brand: brand,
             name: name,
             category: category,
             subtype: subtype,

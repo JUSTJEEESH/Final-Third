@@ -51,6 +51,7 @@ extension DTO {
 
     struct Drink: Codable, Sendable {
         let id: UUID
+        let brand: String?
         let name: String
         let category: String
         let subtype: String?
