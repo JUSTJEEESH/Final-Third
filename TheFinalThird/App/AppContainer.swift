@@ -16,6 +16,12 @@ final class AppContainer {
     let offlineQueue: OfflineQueue
     let analytics: AnalyticsService
 
+    /// Active session state — global so views outside the session flow
+    /// (Lounge, Room, Home, the persistent session bar) can read what's
+    /// burning right now. Owned here, mutated by SessionFlowView and the
+    /// "Light up here" CTAs in rooms.
+    let session: SessionState
+
     /// Routing flag: when signed in but no `profiles` row exists, the user
     /// has to complete onboarding before reaching the main tab bar.
     var needsOnboarding: Bool = false
@@ -32,6 +38,7 @@ final class AppContainer {
         self.audio = AudioEngine()
         self.offlineQueue = OfflineQueue()
         self.analytics = AnalyticsService()
+        self.session = SessionState()
         self.profiles = profiles
     }
 

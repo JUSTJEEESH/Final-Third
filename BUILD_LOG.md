@@ -513,6 +513,34 @@ Required files in `TheFinalThird/Resources/Sounds/` (256 kbps AAC, seamless loop
 
 ---
 
+## 2026-05-07 — Rooms × Sessions, Step 1: Foundation
+
+**The vision (locked)**
+
+We're wiring the ritual to the camaraderie. Two doorways into one state: light first → "Where are you sitting?" sheet → solo or in a room; or sit first → "Light up here" → ceremony in-room. The active session becomes global state that travels with the user across tabs. A persistent session bar pins on top while burning. Patron tier ($7.99/mo · $59/yr · 14-day trial annual-only) gates voice rooms, hosting, multiple usuals, full Journal history, custom audio themes, drop early access, and the gold avatar ring — never gates the core ritual or social access. Full plan committed in conversation.
+
+**What landed in Step 1 (foundation, no UX change yet)**
+
+- `Features/Session/SessionState.swift` — `@Observable` owner of the active session lifecycle. Hoisted onto `AppContainer.session` so any view (Home, Lounge, Room, the future session bar) reads `container.session.activeSession` / `activeCigar` / `activeRoomID` without coordinating through the flow view. Exposes `isBurning`, `isInFlow`, `beginFlow(...)`, `clear()`. Idempotent — a stray "Light up" tap from another surface preserves the in-flight session.
+- `SessionFlowView` refactored to a thin presenter. Removed `userID/roomID/isGhost` props and the local `@State` VM. Now reads `container.session.current` directly. Cancel and `.finished` paths both call `container.session.clear()` so the global state always returns to nil.
+- `HomeView.lightUpButton` calls `container.session.beginFlow(userID:roomID:isGhost:analytics:)` *before* presenting the cover, matching the new contract that the VM exists at present-time. Same UX, different ownership.
+- Migration `0010_session_room_links.sql` (applied to live DB via MCP):
+  - `rooms.mode` (`chat` | `voice`) — schema-ready for voice-room Patron gating without a parallel table
+  - `messages.kind` (`user` | `arrival` | `departure` | `move`) + `messages.payload jsonb` — system events render in the same chat stream as user messages, no separate table
+  - `messages_body_check` relaxed to allow empty body when `kind <> 'user'`
+  - `messages_insert_member` policy tightened to `kind = 'user'` so clients can't spoof "X has lit up"
+  - `sessions_room_active_idx` partial index on `(room_id) where ended_at is null` — the live-now query for the doorway sheet stays O(rooms with active smokers), not O(sessions ever)
+  - `post_system_message(p_room_id, p_kind, p_payload)` SECURITY DEFINER RPC — only path for arrival/departure/move writes, mirrors the SELECT visibility check before inserting
+- `room_members` already existed from 0001 (with role + joined_at) — no new table needed
+
+**Why Step 1 first**
+
+Without global session state, every other surface (room bar, "Pull up a chair" pill, in-room ceremony, mid-session room switching) has to round-trip through HomeView's sheet hierarchy. Hoisting first is load-bearing for everything that comes next.
+
+**Visible to user:** nothing. Light up still launches a sheet, picks cigar/drink/method, plays the ceremony, runs the session, ends in the journal. The plumbing under it is now ready for the doorway sheet (Step 3) and the session bar (Step 2).
+
+---
+
 ## Open items (final polish)
 
 - Drop in licensed audio assets per the spec above; verify ambient loops are seamless across AirPods route changes.

@@ -7,21 +7,27 @@ import SwiftUI
 ///   4. Lighting Ceremony
 ///   5. Active session with burn timer
 ///   6. Summary
+///
+/// The view-model lives on `AppContainer.session` so other surfaces
+/// (Lounge / Room / persistent session bar) can observe what's burning
+/// without coordinating through this view. The view itself is now a
+/// thin presenter over `container.session.current` — it does not own
+/// the session lifecycle.
 struct SessionFlowView: View {
     @Environment(AppContainer.self) private var container
     @Environment(\.dismiss) private var dismiss
 
-    let userID: UUID
-    let roomID: UUID?
-    let isGhost: Bool
-
-    @State private var vm: SessionViewModel?
     @State private var cigars: [Cigar] = []
     @State private var drinks: [Drink] = []
     @State private var showCancelConfirm = false
 
     private let cigarRepo: CigarRepository = LiveCigarRepository()
     private let drinkRepo: DrinkRepository = LiveDrinkRepository()
+
+    /// Source-of-truth view-model. Created by the caller via
+    /// `container.session.beginFlow(...)` before this view appears, so
+    /// `current` should always be non-nil while we're on screen.
+    private var vm: SessionViewModel? { container.session.current }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -40,18 +46,13 @@ struct SessionFlowView: View {
                     .padding(.leading, FTSpace.lg)
             }
         }
-        .task {
-            if vm == nil {
-                vm = SessionViewModel(
-                    userID: userID, roomID: roomID, isGhost: isGhost,
-                    analytics: container.analytics
-                )
-            }
-            await loadCatalog()
-        }
+        .task { await loadCatalog() }
         .alert("Cancel and step out?", isPresented: $showCancelConfirm) {
             Button("Stay", role: .cancel) {}
-            Button("Step out", role: .destructive) { dismiss() }
+            Button("Step out", role: .destructive) {
+                container.session.clear()
+                dismiss()
+            }
         } message: {
             Text("Your selections won't be saved.")
         }
@@ -108,7 +109,11 @@ struct SessionFlowView: View {
             }
         case .active:                   ActiveSessionView(vm: vm)
         case .summary:                  SessionSummaryView(vm: vm)
-        case .finished:                 Color.clear.onAppear { dismiss() }
+        case .finished:
+            Color.clear.onAppear {
+                container.session.clear()
+                dismiss()
+            }
         }
     }
 

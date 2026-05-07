@@ -31,10 +31,10 @@ struct HomeView: View {
             }
         }
         .fullScreenCover(isPresented: $showLightUp) {
-            if case .signedIn(let userID) = container.auth.state {
-                SessionFlowView(userID: userID, roomID: nil,
-                                isGhost: vm?.profile?.ghostModeDefault ?? false)
-            }
+            // SessionFlowView reads from container.session.current, so
+            // the VM has to be created *before* the cover comes up. We
+            // do that in lightUpButton's tap handler.
+            SessionFlowView()
         }
         .sheet(isPresented: $showUsualEditor,
                onDismiss: { Task { await vm?.load() } }) {
@@ -81,6 +81,17 @@ struct HomeView: View {
     private var lightUpButton: some View {
         Button {
             HapticsService.shared.tap()
+            // Spin up the session flow's VM in the global SessionState
+            // *before* presenting the cover. The cover binds to
+            // container.session.current, so it must exist at present-time.
+            if case .signedIn(let userID) = container.auth.state {
+                container.session.beginFlow(
+                    userID: userID,
+                    roomID: nil,
+                    isGhost: vm?.profile?.ghostModeDefault ?? false,
+                    analytics: container.analytics
+                )
+            }
             showLightUp = true
         } label: {
             HStack(spacing: FTSpace.md) {
