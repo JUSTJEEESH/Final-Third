@@ -64,4 +64,14 @@ enum AudioTheme: String, CaseIterable, Sendable, Codable {
         case .fireplace: return "Fireplace"
         }
     }
+
+    /// Two themes are free for everyone — Lounge Murmur and Lo-fi.
+    /// The rest are Patron-gated; pickers render them with a gold
+    /// lock and route to the Patron upsell on tap for free users.
+    var isPatron: Bool {
+        switch self {
+        case .loungeMurmur, .lofi: return false
+        case .jazz, .rain, .fireplace: return true
+        }
+    }
 }

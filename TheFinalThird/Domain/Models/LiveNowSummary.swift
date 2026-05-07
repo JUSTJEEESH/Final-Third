@@ -18,6 +18,7 @@ struct LiveNowSummary: Hashable, Sendable {
         let userID: UUID
         let displayName: String
         let avatarURL: URL?
+        let isPatron: Bool
         let cigarBrand: String?
         let cigarLine: String?
         let minutesIn: Int

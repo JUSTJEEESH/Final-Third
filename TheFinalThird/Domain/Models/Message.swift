@@ -51,6 +51,10 @@ struct SystemPayload: Hashable, Sendable, Codable {
     /// changes their profile.
     var displayName: String?
     var avatarURL: String?
+    /// Snapshotted Patron status. Lets the row render a gold mark
+    /// next to the actor's name even after the actor's subscription
+    /// later expires — historical truth, not current state.
+    var isPatron: Bool?
 
     enum CodingKeys: String, CodingKey {
         case cigarBrand = "cigar_brand"
@@ -62,6 +66,7 @@ struct SystemPayload: Hashable, Sendable, Codable {
         case toRoomName = "to_room_name"
         case displayName = "display_name"
         case avatarURL = "avatar_url"
+        case isPatron = "is_patron"
     }
 }
 

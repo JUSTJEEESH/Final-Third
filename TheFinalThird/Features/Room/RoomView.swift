@@ -349,6 +349,13 @@ private struct PresenceChip: View {
     let presence: RoomPresence
     let smoker: LiveNowSummary.Smoker?
 
+    /// Patron status: prefer the smoker row's snapshot if present
+    /// (live-now is the authoritative source while burning), fall
+    /// back to the presence record's flag.
+    private var isPatron: Bool {
+        smoker?.isPatron ?? presence.isPatron
+    }
+
     var body: some View {
         if let smoker {
             HStack(spacing: 8) {
@@ -356,7 +363,8 @@ private struct PresenceChip: View {
                     AvatarView(
                         url: presence.avatarURL,
                         initials: String(presence.displayName.prefix(2)).uppercased(),
-                        size: 30, isGhost: false, isActive: true
+                        size: 30, isGhost: false, isActive: true,
+                        isPatron: isPatron
                     )
                     Circle()
                         .stroke(FTColor.gold.opacity(0.8), lineWidth: 1.2)
@@ -391,7 +399,8 @@ private struct PresenceChip: View {
             AvatarView(
                 url: presence.avatarURL,
                 initials: String(presence.displayName.prefix(2)).uppercased(),
-                size: 32, isGhost: presence.isGhost, isActive: !presence.isGhost
+                size: 32, isGhost: presence.isGhost, isActive: !presence.isGhost,
+                isPatron: presence.isPatron
             )
         }
     }
@@ -511,6 +520,15 @@ private struct SystemMessageRow: View {
             Image(systemName: glyph)
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(FTColor.gold)
+            // Patron pip — single hairline gold ring before the line,
+            // matching the avatar mark vocabulary. Quiet signal.
+            if message.payload?.isPatron == true {
+                Circle()
+                    .stroke(FTColor.gold.opacity(0.9), lineWidth: 1)
+                    .frame(width: 8, height: 8)
+                    .shadow(color: FTColor.goldGlow.opacity(0.5), radius: 2)
+                    .accessibilityHidden(true)
+            }
             Text(line)
                 .font(FTType.caption(12, weight: .medium))
                 .foregroundStyle(FTColor.inkMuted)
@@ -626,8 +644,10 @@ private struct ComposerBar: View {
 }
 
 private struct AmbientPickerSheet: View {
+    @Environment(AppContainer.self) private var container
     @Bindable var vm: RoomViewModel
     @Environment(\.dismiss) private var dismiss
+    @State private var showPatron = false
 
     var body: some View {
         NavigationStack {
@@ -649,11 +669,20 @@ private struct AmbientPickerSheet: View {
                 Section("Ambience") {
                     ForEach(AudioTheme.allCases, id: \.self) { theme in
                         Button {
-                            vm.setAmbient(theme)
                             HapticsService.shared.tap()
+                            if theme.isPatron, !container.entitlements.isPremium {
+                                showPatron = true
+                            } else {
+                                vm.setAmbient(theme)
+                            }
                         } label: {
                             HStack {
                                 Text(theme.displayName).foregroundStyle(FTColor.ink)
+                                if theme.isPatron, !container.entitlements.isPremium {
+                                    Image(systemName: "lock.fill")
+                                        .foregroundStyle(FTColor.gold)
+                                        .font(.system(size: 11))
+                                }
                                 Spacer()
                                 if vm.ambientTheme == theme {
                                     Image(systemName: "checkmark").foregroundStyle(FTColor.gold)
@@ -670,6 +699,9 @@ private struct AmbientPickerSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
+            }
+            .sheet(isPresented: $showPatron) {
+                PatronSheet(trigger: "audio_theme_room")
             }
         }
         .preferredColorScheme(.dark)

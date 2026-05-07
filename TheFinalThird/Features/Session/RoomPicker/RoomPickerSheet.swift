@@ -115,19 +115,7 @@ struct RoomPickerSheet: View {
         }
         .onDisappear { stopLiveNowPolling() }
         .sheet(isPresented: $showPatronUpsell) {
-            // Placeholder — proper PatronSheet ships in Step 7.
-            VStack(spacing: FTSpace.lg) {
-                Text("Voice rooms are a Patron thing.")
-                    .font(FTType.heading(20, weight: .semibold))
-                    .multilineTextAlignment(.center)
-                Text("We'll have the proper Patron sheet ready before voice rooms ship.")
-                    .font(FTType.body(14))
-                    .foregroundStyle(FTColor.inkMuted)
-                    .multilineTextAlignment(.center)
-                FTButton(title: "Got it", style: .gold) { showPatronUpsell = false }
-            }
-            .padding(FTSpace.xl)
-            .presentationDetents([.medium])
+            PatronSheet(trigger: "voice_room_card")
         }
     }
 
@@ -318,13 +306,23 @@ private struct SmokerRow: View {
 
     var body: some View {
         HStack(spacing: FTSpace.sm) {
-            avatar
-                .frame(width: 22, height: 22)
-                .clipShape(Circle())
-                .overlay(
-                    Circle().stroke(FTColor.gold.opacity(0.55), lineWidth: 0.7)
-                )
-                .shadow(color: FTColor.ember.opacity(0.35), radius: 4)
+            ZStack {
+                avatar
+                    .frame(width: 22, height: 22)
+                    .clipShape(Circle())
+                    .overlay(
+                        Circle().stroke(FTColor.gold.opacity(0.55), lineWidth: 0.7)
+                    )
+                    .shadow(color: FTColor.ember.opacity(0.35), radius: 4)
+                // Patron mark — slightly outset gold ring. Quiet
+                // signal, only visible if you know to look.
+                if smoker.isPatron {
+                    Circle()
+                        .stroke(FTColor.gold.opacity(0.9), lineWidth: 1)
+                        .frame(width: 26, height: 26)
+                        .shadow(color: FTColor.goldGlow.opacity(0.5), radius: 3)
+                }
+            }
 
             Text(smoker.displayName)
                 .font(FTType.body(13, weight: .medium))

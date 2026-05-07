@@ -6,6 +6,7 @@ struct ProfileView: View {
     @State private var showSettings = false
     @State private var showUsual = false
     @State private var showAvatarPicker = false
+    @State private var showPatron = false
 
     var body: some View {
         NavigationStack {
@@ -26,6 +27,7 @@ struct ProfileView: View {
         }
         .sheet(isPresented: $showSettings) { SettingsView() }
         .sheet(isPresented: $showUsual) { TheUsualEditor() }
+        .sheet(isPresented: $showPatron) { PatronSheet(trigger: "audio_theme_profile") }
         .sheet(isPresented: $showAvatarPicker) {
             if case .signedIn(let userID) = container.auth.state {
                 AvatarPickerView(userID: userID) { _ in
@@ -94,7 +96,8 @@ struct ProfileView: View {
                         url: vm.profile?.avatarURL,
                         initials: vm.profile?.initials ?? "··",
                         size: 64,
-                        isActive: true
+                        isActive: true,
+                        isPatron: vm.profile?.isPremium ?? false
                     )
                     // Camera badge — affordance that this is tappable.
                     Image(systemName: "camera.fill")
@@ -154,10 +157,18 @@ struct ProfileView: View {
                         Spacer()
                         Picker("", selection: Binding(
                             get: { vm.profile?.audioTheme ?? .loungeMurmur },
-                            set: { theme in Task { await vm.updateAudioPref(theme) } }
+                            set: { theme in
+                                if theme.isPatron, !container.entitlements.isPremium {
+                                    showPatron = true
+                                } else {
+                                    Task { await vm.updateAudioPref(theme) }
+                                }
+                            }
                         )) {
                             ForEach(AudioTheme.allCases, id: \.self) { theme in
-                                Text(theme.displayName).tag(theme)
+                                let locked = theme.isPatron && !container.entitlements.isPremium
+                                Text(locked ? "\(theme.displayName)  🔒" : theme.displayName)
+                                    .tag(theme)
                             }
                         }
                         .pickerStyle(.menu)

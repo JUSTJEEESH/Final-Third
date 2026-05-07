@@ -31,6 +31,7 @@ struct RoomPresence: Hashable, Sendable, Codable {
     var displayName: String
     var avatarURL: URL?
     var isGhost: Bool
+    var isPatron: Bool = false
     var joinedAt: Date
     var lastSeenAt: Date
 }

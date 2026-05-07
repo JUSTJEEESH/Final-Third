@@ -249,7 +249,8 @@ final class SessionViewModel {
             fromRoomName: nil,
             toRoomName: nil,
             displayName: snapshot.name,
-            avatarURL: snapshot.avatar
+            avatarURL: snapshot.avatar,
+            isPatron: snapshot.isPatron
         )
         try? await messages.postSystem(roomID: roomID, kind: .arrival, payload: payload)
     }
@@ -269,7 +270,8 @@ final class SessionViewModel {
             fromRoomName: nil,
             toRoomName: nil,
             displayName: snapshot.name,
-            avatarURL: snapshot.avatar
+            avatarURL: snapshot.avatar,
+            isPatron: snapshot.isPatron
         )
         try? await messages.postSystem(roomID: roomID, kind: .departure, payload: payload)
     }
@@ -289,16 +291,17 @@ final class SessionViewModel {
             fromRoomName: fromRoomName,
             toRoomName: nil,
             displayName: snapshot.name,
-            avatarURL: snapshot.avatar
+            avatarURL: snapshot.avatar,
+            isPatron: snapshot.isPatron
         )
         try? await messages.postSystem(roomID: roomID, kind: .move, payload: payload)
     }
 
-    private func profileSnapshot() async -> (name: String, avatar: String?) {
+    private func profileSnapshot() async -> (name: String, avatar: String?, isPatron: Bool) {
         if let p = try? await profiles.fetch(id: userID) {
-            return (p.displayName, p.avatarURL?.absoluteString)
+            return (p.displayName, p.avatarURL?.absoluteString, p.isPremium)
         }
-        return ("Someone", nil)
+        return ("Someone", nil, false)
     }
 
     private func startBurnTimer() {

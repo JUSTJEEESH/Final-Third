@@ -800,6 +800,71 @@ The cigar travels with you. Mid-burn, you can wander the lounge and slide into a
 
 ---
 
+## 2026-05-07 — Rooms × Sessions, Step 7: The Patron tier
+
+The freemium layer is in. The ritual stays free for everyone; depth and customization unlock for Patrons. Gold rings, audio-theme locks, the upsell sheet, the social signal — all live.
+
+**What landed**
+
+- Migration `0012_room_live_now_patron.sql` (applied via MCP) — the live-now RPC now returns `is_premium` per smoker so the doorway sheet's gold ring renders without a fan-out fetch.
+
+- Domain layer:
+  - `LiveNowSummary.Smoker.isPatron`
+  - `RoomPresence.isPatron` (defaults to false)
+  - `SystemPayload.isPatron` — snapshotted at post time so historical arrival/departure rows keep their gold mark even after a subscription expires.
+  - `AudioTheme.isPatron` — `loungeMurmur` and `lofi` are free; `jazz`, `rain`, `fireplace` are Patron-gated.
+
+- Wire-up:
+  - `RoomRepository.liveNow` decodes `is_premium` and passes it to the domain `Smoker`.
+  - `RealtimeService.enrich` pulls `is_premium` from the joined profile when emitting `presenceJoined`.
+  - `SessionViewModel.profileSnapshot()` returns `(name, avatar, isPatron)` — every `arrival` / `departure` / `move` payload carries the actor's Patron status.
+
+- `AvatarView` learned `isPatron`. Renders a faint gold ring just outside the avatar (with a soft `goldGlow` shadow). Composes with `isActive` so a smoker can show both rings without conflict. Accessibility label reads "Patron" when set.
+
+- `PatronSheet` (new — `Features/Patron/PatronSheet.swift`):
+  - Single screen, leather + warm radial glow, no comparison table.
+  - Header: "THE PATRON — Become a patron of the house."
+  - Three rotating value lines (3.5s cycle) with a fade-and-slide.
+  - Two price cards: **Monthly $7.99** and **Annual $59 / 14-day free trial · save $36** (annual is gold-haloed, the recommended path).
+  - Quiet "Restore purchases" link.
+  - Fine print: *"The ritual is always free. Patrons unlock depth — never the door."*
+  - Trigger string captured in analytics so we can see which moments convert.
+  - RevenueCat package IDs `$rc_monthly` / `$rc_annual` (well-known offering identifiers).
+
+- `PaywallView` is now a thin shim that re-presents `PatronSheet`. `PremiumGateModifier` + `.premiumGate(isPremium:trigger:)` keep the existing call sites at JournalView and SettingsView working.
+
+- Patron mark surfaces:
+  - **Doorway sheet** — `SmokerRow` overlays a gold ring on patron avatars in the live-now cards.
+  - **Room presence rail** — `PresenceChip` passes `isPatron` to `AvatarView`; smoker chips use the live-now snapshot, plain avatars use the presence record.
+  - **Chat system messages** — `SystemMessageRow` shows a small gold pip before an arrival/departure/move line when `payload.isPatron == true`.
+  - **Profile self avatar** — gold ring renders for patron users when looking at their own profile.
+
+- Audio-theme locks at every picker:
+  - **Onboarding vibe step** — new shared `AmbiencePicker` view: lock icon on Patron themes, taps fire `PatronSheet(trigger: "audio_theme_onboarding")`.
+  - **Settings → Default ambient** — Picker rows show "🔒" suffix for locked themes; the binding's `set` intercepts a Patron-only selection and presents the upsell.
+  - **Profile → Default audio** — same pattern as Settings, presents `PatronSheet(trigger: "audio_theme_profile")`.
+  - **Room → Ambience picker** — lock icon next to locked rows; tap presents the upsell rather than committing.
+
+- The Step 3 voice-room placeholder upsell is gone — it now opens the real `PatronSheet(trigger: "voice_room_card")`.
+
+**What's intentionally deferred**
+
+- Multiple Usuals UI (no current UI surfaces multiple usuals; will add when host-room and journal-export ship).
+- Cellar / virtual humidor.
+- Drop early access (needs a server-side window).
+- Departure-rating badge in chat (needs design pass on when to post — leaving the field on the payload but not surfacing it yet).
+- Live-now magnifier (global view).
+
+**Visible to user**
+
+- Open Settings → Default ambient → Jazz/Rain/Fireplace show 🔒. Tap one as a free user → PatronSheet rises.
+- Doorway sheet's "Lit up right now" cards — Patron smokers carry a faint gold ring around their avatar.
+- Profile screen — your own avatar gets the gold ring once you're a Patron.
+- Room presence rail — Patron smokers' chips have the same ring.
+- A patron's arrival in chat starts with a small gold pip before the line.
+
+---
+
 ## Open items (final polish)
 
 - Drop in licensed audio assets per the spec above; verify ambient loops are seamless across AirPods route changes.

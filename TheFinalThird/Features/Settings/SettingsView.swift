@@ -49,10 +49,22 @@ struct SettingsView: View {
                                 Spacer()
                                 Picker("", selection: Binding(
                                     get: { profile?.audioTheme ?? .loungeMurmur },
-                                    set: { theme in Task { await update(audioTheme: theme) } }
+                                    set: { theme in
+                                        // Patron gate: free users
+                                        // selecting a locked theme
+                                        // get the upsell instead of
+                                        // the audio change.
+                                        if theme.isPatron, !container.entitlements.isPremium {
+                                            showPaywall = true
+                                        } else {
+                                            Task { await update(audioTheme: theme) }
+                                        }
+                                    }
                                 )) {
                                     ForEach(AudioTheme.allCases, id: \.self) { theme in
-                                        Text(theme.displayName).tag(theme)
+                                        let locked = theme.isPatron && !container.entitlements.isPremium
+                                        Text(locked ? "\(theme.displayName)  🔒" : theme.displayName)
+                                            .tag(theme)
                                     }
                                 }
                                 .labelsHidden()

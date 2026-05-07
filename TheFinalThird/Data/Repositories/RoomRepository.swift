@@ -102,6 +102,7 @@ struct LiveRoomRepository: RoomRepository {
             let user_id: UUID
             let display_name: String
             let avatar_url: String?
+            let is_premium: Bool?
             let cigar_brand: String?
             let cigar_line: String?
             let minutes_in: Int
@@ -118,6 +119,7 @@ struct LiveRoomRepository: RoomRepository {
                     userID: $0.user_id,
                     displayName: $0.display_name,
                     avatarURL: $0.avatar_url.flatMap(URL.init(string:)),
+                    isPatron: $0.is_premium ?? false,
                     cigarBrand: $0.cigar_brand,
                     cigarLine: $0.cigar_line,
                     minutesIn: $0.minutes_in

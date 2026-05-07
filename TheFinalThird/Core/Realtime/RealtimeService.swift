@@ -195,6 +195,7 @@ actor RealtimeService {
             displayName: dto.display_name,
             avatarURL: dto.avatar_url.flatMap(URL.init(string:)),
             isGhost: presence.is_ghost,
+            isPatron: dto.is_premium,
             joinedAt: presence.joined_at,
             lastSeenAt: presence.last_seen_at
         )

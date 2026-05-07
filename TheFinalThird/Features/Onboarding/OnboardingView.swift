@@ -1216,23 +1216,7 @@ private struct VibeStep: View {
                     .font(FTType.caption(11, weight: .semibold))
                     .foregroundStyle(FTColor.inkMuted)
                     .tracking(1.2)
-                ForEach(AudioTheme.allCases, id: \.self) { theme in
-                    Button {
-                        vm.audioTheme = theme
-                        HapticsService.shared.soft()
-                    } label: {
-                        FTCard {
-                            HStack {
-                                Image(systemName: vm.audioTheme == theme ? "checkmark.circle.fill" : "circle")
-                                    .foregroundStyle(vm.audioTheme == theme ? FTColor.gold : FTColor.inkFaint)
-                                Text(theme.displayName)
-                                    .font(FTType.body(15))
-                                    .foregroundStyle(FTColor.ink)
-                                Spacer()
-                            }
-                        }
-                    }.buttonStyle(.plain)
-                }
+                AmbiencePicker(selected: $vm.audioTheme)
             }
 
             VStack(alignment: .leading, spacing: FTSpace.sm) {
@@ -1265,6 +1249,52 @@ private struct VibeStep: View {
                     .tint(FTColor.gold)
                 }
             }
+        }
+    }
+}
+
+/// Card-row audio theme picker. Reusable from Onboarding's vibe step.
+/// Patron-only themes show a gold lock; tapping them presents the
+/// PatronSheet rather than committing the selection.
+private struct AmbiencePicker: View {
+    @Environment(AppContainer.self) private var container
+    @Binding var selected: AudioTheme
+    @State private var showPatron = false
+
+    var body: some View {
+        VStack(spacing: FTSpace.sm) {
+            ForEach(AudioTheme.allCases, id: \.self) { theme in
+                let locked = theme.isPatron && !container.entitlements.isPremium
+                Button {
+                    if locked {
+                        HapticsService.shared.tap()
+                        showPatron = true
+                    } else {
+                        selected = theme
+                        HapticsService.shared.soft()
+                    }
+                } label: {
+                    FTCard {
+                        HStack {
+                            Image(systemName: selected == theme ? "checkmark.circle.fill" : "circle")
+                                .foregroundStyle(selected == theme ? FTColor.gold : FTColor.inkFaint)
+                            Text(theme.displayName)
+                                .font(FTType.body(15))
+                                .foregroundStyle(FTColor.ink)
+                            if locked {
+                                Image(systemName: "lock.fill")
+                                    .foregroundStyle(FTColor.gold.opacity(0.85))
+                                    .font(.system(size: 11))
+                            }
+                            Spacer()
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .sheet(isPresented: $showPatron) {
+            PatronSheet(trigger: "audio_theme_onboarding")
         }
     }
 }
