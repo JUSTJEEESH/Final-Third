@@ -134,7 +134,11 @@ struct AvatarPickerView: View {
         .padding(.horizontal, FTSpace.xl)
     }
 
-    private func sourceLabel(icon: String, text: String) -> some View {
+    /// `nonisolated` because `PhotosPicker`'s label closure is a
+    /// nonisolated context in Swift 6 strict concurrency. The body
+    /// only references Sendable constants (FTColor / FTType / FTSpace)
+    /// and the two String params, so there's nothing actor-bound here.
+    nonisolated private func sourceLabel(icon: String, text: String) -> some View {
         HStack(spacing: 8) {
             Image(systemName: icon)
             Text(text).font(FTType.body(15, weight: .medium))
