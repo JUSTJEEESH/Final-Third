@@ -3,6 +3,7 @@ import SwiftUI
 struct ExploreView: View {
     @State private var vm = ExploreViewModel()
     @State private var showFilters = false
+    @State private var showSubmitCigar = false
 
     var body: some View {
         NavigationStack {
@@ -21,6 +22,7 @@ struct ExploreView: View {
         }
         .task { await vm.load() }
         .sheet(isPresented: $showFilters) { FiltersSheet(vm: vm) }
+        .sheet(isPresented: $showSubmitCigar) { SubmitCigarView() }
     }
 
     private var header: some View {
@@ -102,11 +104,37 @@ struct ExploreView: View {
                         .font(FTType.caption(13)).foregroundStyle(FTColor.inkMuted)
                         .padding(.top, FTSpace.xl)
                 }
+                addCigarRow
             }
             .padding(.horizontal, FTSpace.lg)
             .padding(.top, FTSpace.lg)
             .padding(.bottom, FTSpace.lg)
         }
+    }
+
+    private var addCigarRow: some View {
+        Button {
+            HapticsService.shared.tap()
+            showSubmitCigar = true
+        } label: {
+            FTCard(texture: nil) {
+                HStack(spacing: FTSpace.md) {
+                    Image(systemName: "plus.circle")
+                        .foregroundStyle(FTColor.gold)
+                        .font(.system(size: 20))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Don't see your cigar?")
+                            .font(FTType.body(14, weight: .medium))
+                        Text("Submit it for the catalog.")
+                            .font(FTType.caption(11)).foregroundStyle(FTColor.inkMuted)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right").foregroundStyle(FTColor.inkFaint)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .padding(.top, FTSpace.md)
     }
 
     private var drinksList: some View {
