@@ -12,9 +12,16 @@ final class ExploreViewModel {
 
     var mode: Mode = .cigars
     var query: String = "" { didSet { Task { await debouncedSearch() } } }
+
+    // Cigar filters
     var selectedStrength: Int?
     var selectedWrapper: String?
     var selectedCountry: String?
+
+    // Drink filters
+    var selectedDrinkCategory: String?
+    var selectedDrinkSubtype: String?
+    private(set) var availableDrinkCategories: [String] = []
 
     private(set) var cigars: [Cigar] = []
     private(set) var drinks: [Drink] = []
@@ -35,6 +42,9 @@ final class ExploreViewModel {
 
     func load() async {
         await refresh()
+        if availableDrinkCategories.isEmpty {
+            availableDrinkCategories = (try? await drinkRepo.categories()) ?? []
+        }
     }
 
     func refresh() async {
@@ -42,9 +52,9 @@ final class ExploreViewModel {
         do {
             switch mode {
             case .cigars:
-                cigars = try await cigarRepo.search(currentFilters, limit: 100)
+                cigars = try await cigarRepo.search(currentCigarFilters, limit: 200)
             case .drinks:
-                drinks = try await drinkRepo.list(category: nil)
+                drinks = try await drinkRepo.search(currentDrinkFilters, limit: 500)
             }
         } catch {
             self.error = error.localizedDescription
@@ -60,6 +70,8 @@ final class ExploreViewModel {
         selectedStrength = nil
         selectedWrapper = nil
         selectedCountry = nil
+        selectedDrinkCategory = nil
+        selectedDrinkSubtype = nil
         Task { await refresh() }
     }
 
@@ -72,12 +84,20 @@ final class ExploreViewModel {
         }
     }
 
-    private var currentFilters: CigarFilters {
+    private var currentCigarFilters: CigarFilters {
         CigarFilters(
             query: query,
             country: selectedCountry,
             wrapper: selectedWrapper,
             strength: selectedStrength
+        )
+    }
+
+    private var currentDrinkFilters: DrinkFilters {
+        DrinkFilters(
+            query: query,
+            category: selectedDrinkCategory,
+            subtype: selectedDrinkSubtype.flatMap { $0.isEmpty ? nil : $0 }
         )
     }
 }

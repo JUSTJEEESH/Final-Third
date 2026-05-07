@@ -155,14 +155,22 @@ private struct SessionRow: View {
 
 private struct EmptyJournal: View {
     var body: some View {
-        VStack(spacing: FTSpace.sm) {
-            Image(systemName: "book.closed").font(.system(size: 28))
-                .foregroundStyle(FTColor.inkFaint)
-            Text("Your first session will land here.")
-                .font(FTType.body(14)).foregroundStyle(FTColor.inkMuted)
+        FTCard(texture: .agedPaper, textureIntensity: 0.22, textureZoom: 1.5) {
+            VStack(spacing: FTSpace.md) {
+                Image(systemName: "book.closed")
+                    .font(.system(size: 28))
+                    .foregroundStyle(FTColor.gold.opacity(0.7))
+                Text("An empty page.")
+                    .font(FTType.display(20))
+                    .foregroundStyle(FTColor.ink)
+                Text("Your first session lives here. Light up tonight and we'll fill it in.")
+                    .font(FTType.caption(13))
+                    .foregroundStyle(FTColor.inkMuted)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, FTSpace.lg)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, FTSpace.xxl)
     }
 }
 

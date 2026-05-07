@@ -11,6 +11,10 @@ final class HomeViewModel {
     var activeRooms: [Room] = []
     var currentDrop: CigarDrop?
     var dropCigar: Cigar?
+    /// First upcoming drop after `currentDrop` ends (or first drop in
+    /// the future when no drop is live). Drives the teaser card on Home.
+    var upcomingDrop: CigarDrop?
+    var upcomingDropCigar: Cigar?
     var nearbyEvents: [LoungeEvent] = []
     var isLoading = false
 
@@ -62,6 +66,7 @@ final class HomeViewModel {
         async let usualTask = usuals.fetch(userID: userID)
         async let roomsTask = rooms.list()
         async let dropTask = drops.current()
+        async let upcomingDropsTask = drops.upcoming(limit: 1)
 
         profile = try? await profileTask
         let usual = try? await usualTask
@@ -77,6 +82,12 @@ final class HomeViewModel {
         currentDrop = drop
         if let cigarID = drop?.cigarID {
             dropCigar = try? await cigars.fetch(id: cigarID)
+        }
+
+        let upcoming = (try? await upcomingDropsTask) ?? []
+        upcomingDrop = upcoming.first
+        if let cigarID = upcoming.first?.cigarID {
+            upcomingDropCigar = try? await cigars.fetch(id: cigarID)
         }
 
         let city = profile?.city

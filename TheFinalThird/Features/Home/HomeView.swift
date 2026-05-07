@@ -48,6 +48,8 @@ struct HomeView: View {
                 if let usual = vm.usual { YourRitual(usual: usual, cigar: vm.usualCigar) }
                 if let drop = vm.currentDrop, let cigar = vm.dropCigar {
                     DropOfTheWeek(drop: drop, cigar: cigar)
+                } else if let upcoming = vm.upcomingDrop, let cigar = vm.upcomingDropCigar {
+                    UpcomingDropTeaser(drop: upcoming, cigar: cigar)
                 }
                 ActiveRooms(rooms: vm.activeRooms)
                 if !vm.nearbyEvents.isEmpty {
@@ -104,11 +106,24 @@ private struct Greeting: View {
     let greeting: String
     let streak: Int
 
+    /// First name only — feels personal without ever sounding formal.
+    private var firstName: String? {
+        guard let name else { return nil }
+        return name.split(separator: " ").first.map(String.init)
+    }
+
     var body: some View {
         HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(greeting).font(FTType.display(28)).foregroundStyle(FTColor.gold)
-                if let name { Text(name).font(FTType.body(14)).foregroundStyle(FTColor.inkMuted) }
+            VStack(alignment: .leading, spacing: 6) {
+                Text(greeting)
+                    .font(FTType.display(28))
+                    .foregroundStyle(FTColor.gold)
+                if let firstName {
+                    Text(firstName)
+                        .font(FTType.display(38, weight: .semibold))
+                        .foregroundStyle(FTColor.ink)
+                        .padding(.top, 2)
+                }
             }
             Spacer()
             if streak > 0 { EmberBadge(streakCount: streak) }
@@ -124,7 +139,10 @@ private struct TonightsPick: View {
         VStack(alignment: .leading, spacing: FTSpace.sm) {
             sectionTitle("Tonight's Pick")
             NavigationLink(value: AppRoute.cigar(cigar.id)) {
-                FTCard(elevated: true) {
+                FTCard(elevated: true,
+                       texture: .tobaccoLeaf,
+                       textureIntensity: 0.20,
+                       textureZoom: 1.6) {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(cigar.brand.uppercased())
@@ -142,6 +160,8 @@ private struct TonightsPick: View {
                                 startPoint: .top, endPoint: .bottom
                             ))
                             .font(.system(size: 28))
+                            .shadow(color: FTColor.ember.opacity(0.55),
+                                    radius: 10, x: 0, y: 0)
                     }
                 }
             }.buttonStyle(.plain)
@@ -211,6 +231,46 @@ private struct DropOfTheWeek: View {
     }
 }
 
+private struct UpcomingDropTeaser: View {
+    let drop: CigarDrop
+    let cigar: Cigar
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: FTSpace.sm) {
+            sectionTitle("Coming Soon")
+            FTCard {
+                HStack(spacing: FTSpace.md) {
+                    Image(systemName: "hourglass")
+                        .foregroundStyle(FTColor.gold)
+                        .font(.system(size: 22))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(cigar.brand.uppercased())
+                            .font(FTType.caption(10, weight: .semibold))
+                            .foregroundStyle(FTColor.gold).tracking(1.2)
+                        Text(cigar.line)
+                            .font(FTType.body(15, weight: .semibold))
+                        Text(whenText)
+                            .font(FTType.caption(11))
+                            .foregroundStyle(FTColor.inkMuted)
+                    }
+                    Spacer()
+                }
+            }
+        }
+    }
+
+    private var whenText: String {
+        let cal = Calendar.current
+        let days = cal.dateComponents([.day], from: .now, to: drop.startsAt).day ?? 0
+        if days <= 0 { return "Lighting up today" }
+        if days == 1 { return "Tomorrow" }
+        if days < 7 {
+            return drop.startsAt.formatted(.dateTime.weekday(.wide))
+        }
+        return drop.startsAt.formatted(date: .abbreviated, time: .omitted)
+    }
+}
+
 private struct ActiveRooms: View {
     let rooms: [Room]
 
@@ -218,8 +278,21 @@ private struct ActiveRooms: View {
         VStack(alignment: .leading, spacing: FTSpace.sm) {
             sectionTitle("Active Rooms")
             if rooms.isEmpty {
-                Text("Nothing yet — be the first to step in.")
-                    .font(FTType.caption(13)).foregroundStyle(FTColor.inkMuted)
+                FTCard {
+                    HStack(spacing: FTSpace.md) {
+                        Image(systemName: "smoke")
+                            .foregroundStyle(FTColor.inkFaint)
+                            .font(.system(size: 22))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Quiet so far tonight.")
+                                .font(FTType.body(14, weight: .medium))
+                            Text("Step in. Someone always shows up.")
+                                .font(FTType.caption(11))
+                                .foregroundStyle(FTColor.inkMuted)
+                        }
+                        Spacer()
+                    }
+                }
             } else {
                 ForEach(rooms) { room in
                     NavigationLink(value: AppRoute.room(room.id)) {

@@ -4,6 +4,7 @@ struct ExploreView: View {
     @State private var vm = ExploreViewModel()
     @State private var showFilters = false
     @State private var showSubmitCigar = false
+    @State private var showSubmitDrink = false
 
     var body: some View {
         NavigationStack {
@@ -23,6 +24,7 @@ struct ExploreView: View {
         .task { await vm.load() }
         .sheet(isPresented: $showFilters) { FiltersSheet(vm: vm) }
         .sheet(isPresented: $showSubmitCigar) { SubmitCigarView() }
+        .sheet(isPresented: $showSubmitDrink) { SubmitDrinkView() }
     }
 
     private var header: some View {
@@ -143,11 +145,42 @@ struct ExploreView: View {
                 ForEach(vm.drinks) { drink in
                     DrinkRow(drink: drink)
                 }
+                if vm.drinks.isEmpty {
+                    Text("Nothing matches that search.")
+                        .font(FTType.caption(13)).foregroundStyle(FTColor.inkMuted)
+                        .padding(.top, FTSpace.xl)
+                }
+                addDrinkRow
             }
             .padding(.horizontal, FTSpace.lg)
             .padding(.top, FTSpace.lg)
             .padding(.bottom, FTSpace.lg)
         }
+    }
+
+    private var addDrinkRow: some View {
+        Button {
+            HapticsService.shared.tap()
+            showSubmitDrink = true
+        } label: {
+            FTCard(texture: nil) {
+                HStack(spacing: FTSpace.md) {
+                    Image(systemName: "plus.circle")
+                        .foregroundStyle(FTColor.gold)
+                        .font(.system(size: 20))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Don't see your drink?")
+                            .font(FTType.body(14, weight: .medium))
+                        Text("Submit it for the bar.")
+                            .font(FTType.caption(11)).foregroundStyle(FTColor.inkMuted)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right").foregroundStyle(FTColor.inkFaint)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .padding(.top, FTSpace.md)
     }
 }
 
@@ -218,32 +251,30 @@ private struct FiltersSheet: View {
     @Bindable var vm: ExploreViewModel
     @Environment(\.dismiss) private var dismiss
 
+    private static let cigarWrappers = [
+        "Connecticut", "Habano", "Maduro", "Corojo", "Sumatra",
+        "Cameroon", "Broadleaf", "Sun Grown", "San Andrés",
+    ]
+    private static let cigarCountries = [
+        "Cuba", "Nicaragua", "Honduras", "Dominican Republic",
+        "Mexico", "Brazil", "Ecuador", "USA",
+    ]
+    /// Categories shown in the drink filter. Driven by the live catalog
+    /// distinct values from ExploreViewModel.availableDrinkCategories;
+    /// fall back to a static list if that fetch hasn't completed yet.
+    private static let fallbackDrinkCategories = [
+        "whisky", "beer", "rum", "tequila", "mezcal", "cognac",
+        "armagnac", "port", "sherry", "madeira", "amaro",
+        "coffee", "tea", "non-alcoholic",
+    ]
+
     var body: some View {
         NavigationStack {
             Form {
-                Section("Strength") {
-                    Picker("Strength", selection: $vm.selectedStrength) {
-                        Text("Any").tag(Int?.none)
-                        ForEach(1...5, id: \.self) { s in
-                            Text(Cigar.Strength(rawValue: s)?.label ?? "\(s)").tag(Int?.some(s))
-                        }
-                    }
-                }
-                Section("Wrapper") {
-                    Picker("Wrapper", selection: $vm.selectedWrapper) {
-                        Text("Any").tag(String?.none)
-                        ForEach(["Connecticut", "Habano", "Maduro", "Corojo", "Sumatra"], id: \.self) {
-                            Text($0).tag(String?.some($0))
-                        }
-                    }
-                }
-                Section("Country") {
-                    Picker("Country", selection: $vm.selectedCountry) {
-                        Text("Any").tag(String?.none)
-                        ForEach(["Honduras", "Nicaragua", "Dominican Republic", "Cuba", "Mexico"], id: \.self) {
-                            Text($0).tag(String?.some($0))
-                        }
-                    }
+                if vm.mode == .cigars {
+                    cigarSections
+                } else {
+                    drinkSections
                 }
             }
             .navigationTitle("Filters")
@@ -260,5 +291,63 @@ private struct FiltersSheet: View {
             }
         }
         .preferredColorScheme(.dark)
+    }
+
+    @ViewBuilder
+    private var cigarSections: some View {
+        Section("Strength") {
+            Picker("Strength", selection: $vm.selectedStrength) {
+                Text("Any").tag(Int?.none)
+                ForEach(1...5, id: \.self) { s in
+                    Text(Cigar.Strength(rawValue: s)?.label ?? "\(s)").tag(Int?.some(s))
+                }
+            }
+        }
+        Section("Wrapper") {
+            Picker("Wrapper", selection: $vm.selectedWrapper) {
+                Text("Any").tag(String?.none)
+                ForEach(Self.cigarWrappers, id: \.self) {
+                    Text($0).tag(String?.some($0))
+                }
+            }
+        }
+        Section("Country") {
+            Picker("Country", selection: $vm.selectedCountry) {
+                Text("Any").tag(String?.none)
+                ForEach(Self.cigarCountries, id: \.self) {
+                    Text($0).tag(String?.some($0))
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var drinkSections: some View {
+        Section("Category") {
+            Picker("Category", selection: $vm.selectedDrinkCategory) {
+                Text("Any").tag(String?.none)
+                ForEach(drinkCategoryOptions, id: \.self) { c in
+                    Text(c.capitalized).tag(String?.some(c))
+                }
+            }
+        }
+        Section("Subtype") {
+            TextField("e.g. Belgian Quadrupel, Islay single malt",
+                      text: Binding(
+                          get: { vm.selectedDrinkSubtype ?? "" },
+                          set: { vm.selectedDrinkSubtype = $0.isEmpty ? nil : $0 }
+                      ))
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            Text("Free text — partial match against existing entries.")
+                .font(FTType.caption(11))
+                .foregroundStyle(FTColor.inkMuted)
+        }
+    }
+
+    private var drinkCategoryOptions: [String] {
+        vm.availableDrinkCategories.isEmpty
+            ? Self.fallbackDrinkCategories
+            : vm.availableDrinkCategories
     }
 }
