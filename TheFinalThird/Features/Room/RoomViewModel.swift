@@ -210,7 +210,22 @@ final class RoomViewModel {
     private func apply(_ event: RealtimeService.Event) {
         switch event {
         case .message(let m):
-            if !messages.contains(where: { $0.id == m.id }) { messages.append(m) }
+            // If we already have an optimistic copy with the same id,
+            // upgrade it from .pending → .synced rather than dropping
+            // the canonical version. Otherwise append.
+            if let idx = messages.firstIndex(where: { $0.id == m.id }) {
+                if case .pending = messages[idx].pendingState {
+                    messages[idx] = m
+                }
+            } else {
+                messages.append(m)
+                // Refresh the smoker chips when a system message
+                // lands — arrivals/departures change who's lit up
+                // here and the rail should reflect that immediately.
+                if m.kind != .user {
+                    Task { await refreshSmokers() }
+                }
+            }
         case .messageEdited(let m):
             replace(id: m.id, with: m)
         case .messageDeleted(let id):

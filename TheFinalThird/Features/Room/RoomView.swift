@@ -59,25 +59,15 @@ struct RoomView: View {
                 await vm?.enter(asGhost: asGhost)
             }
         }
-        // When the session cover dismisses (minimize / end / Path B
-        // ceremony-complete) refetch messages + smokers so a freshly
-        // posted arrival or departure system event shows up without
-        // a manual reload. One cheap query per cover transition —
-        // worth it until realtime is wired in.
+        // Realtime delivers arrivals + departures live now (5.5), so
+        // the cover-dismiss refresh hooks from Step 5 are gone. We
+        // still refresh the smoker rail when the cover closes — it's
+        // a single RPC that catches the case where you ended the
+        // session in this room and want the chips to update right
+        // away rather than waiting for the 30s poll.
         .onChange(of: container.session.isFlowPresented) { _, presented in
             guard !presented else { return }
-            Task {
-                await vm?.refreshMessages()
-                await vm?.refreshSmokers()
-            }
-        }
-        // Also catch end-of-flow (current cleared) so a departure
-        // event lands in chat after the summary closes.
-        .onChange(of: container.session.current?.session?.id) { _, _ in
-            Task {
-                await vm?.refreshMessages()
-                await vm?.refreshSmokers()
-            }
+            Task { await vm?.refreshSmokers() }
         }
         .sheet(isPresented: $showAmbientPicker) {
             if let vm { AmbientPickerSheet(vm: vm) }

@@ -715,6 +715,44 @@ The room finally reacts. Light up in a room and the chat gets a quiet gold-marke
 
 ---
 
+## 2026-05-07 — Step 5.5: Realtime, properly wired
+
+The RealtimeService stub from M-era is gone. Channels are real now.
+
+**What landed**
+
+- `Core/Realtime/RealtimeService.swift` rewritten against `supabase-swift` 2.20's V2 channel API (`onPostgresChange(InsertAction.self, …)` / `onPostgresChange(UpdateAction.self, …)` / `onPostgresChange(DeleteAction.self, …)`):
+  - One channel per room — topic `room:<uuid>`, filter `room_id=eq.<uuid>`.
+  - **Messages — INSERT** → `.message(Message)`. Catches user chat *and* system events (arrival / departure / move) since both go through the `messages` table.
+  - **Messages — UPDATE** → `.messageEdited` or `.messageDeleted` depending on `deleted_at` (we soft-delete by setting the column rather than removing the row).
+  - **Presence — INSERT** on `room_presence` → fetch the user's `profiles` row, emit a fully-populated `RoomPresence` with display name + avatar.
+  - **Presence — DELETE** on `room_presence` → emit `.presenceLeft(userID, roomID)`.
+  - Reactions wiring is intentionally deferred (UI doesn't render reactions yet); the `Event` cases stay so the contract is stable.
+  - Subscriptions ref-counted per topic; the last consumer's termination calls `client.removeChannel(channel)` which unsubscribes and tears down.
+  - `subscribe(roomID:)` is `nonisolated` (returns a value) and bridges callbacks → `AsyncStream` via the SDK's `@Sendable` callback signature.
+
+- All four tables are already in the `supabase_realtime` publication (migration 0001) — no schema change needed.
+
+- `RoomViewModel.apply(_:)`:
+  - `.message` now upgrades a local `.pending` row to `.synced` if realtime delivers the canonical version before the HTTP send returns. Append otherwise.
+  - System events (arrival / departure / move) trigger a `refreshSmokers()` so the smoker rail's gold-haloed chips update the moment someone lights up next to you.
+
+- `RoomView` lost the cover-dismiss `refreshMessages()` hook from Step 5 — realtime owns that path now. Kept the lighter `refreshSmokers()` so ending your own session updates your own room's chips immediately (the live-now RPC isn't part of the channel filter).
+
+**Why this matters**
+
+- Other people's arrivals now bloom in your chat in real time. Other people's departures land instantly. The "presence rail floats live smokers to the front" actually works *as* people light up.
+- The system event experience from Step 5 (gold ember bloom when an arrival row first appears) finally fires for everyone in the room, not just the actor.
+- The doorway sheet's "Lit up right now" cards still poll every 30s — that's a fan-out across rooms (not a single channel), and the poll is good enough there. Inside a single room, realtime is the source of truth.
+
+**Visible to user**
+
+- Two devices in the same room: device A lights up → device B sees "X has lit up — Padrón 1964" appear in chat with the gold bloom, no refresh needed. Device A ends → device B sees "X stepped out · 47 min" the same way.
+- Chat messages flow live across devices.
+- Presence rail updates as people enter/leave the room.
+
+---
+
 ## Open items (final polish)
 
 - Drop in licensed audio assets per the spec above; verify ambient loops are seamless across AirPods route changes.
