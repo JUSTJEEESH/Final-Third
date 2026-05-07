@@ -15,6 +15,12 @@ struct RoomPickerSheet: View {
     @Environment(AppContainer.self) private var container
     @Environment(\.dismiss) private var dismiss
 
+    /// When presented mid-session for a room switch, this is the
+    /// session's current `roomID` — we hide it from the list (and
+    /// refuse to pick it) so the picker never offers "move to where
+    /// you already are." Nil for the post-ceremony flow.
+    var excludeRoomID: UUID? = nil
+
     /// Called with `nil` if the user chose "Stay solo" or with the
     /// chosen room. Caller is responsible for kicking off the actual
     /// `startSession(roomID:)` — the picker is presentation-only.
@@ -103,6 +109,7 @@ struct RoomPickerSheet: View {
         }
         .preferredColorScheme(.dark)
         .task {
+            vm.excludeRoomID = excludeRoomID
             await vm.load()
             startLiveNowPolling()
         }

@@ -115,6 +115,70 @@ final class SessionViewModel {
         await startSession()
     }
 
+    /// Mid-session room change. Three flavors based on where you
+    /// were:
+    ///   • from another room → departure to old, move-with-from to new
+    ///   • from solo (no room) → fresh arrival in new
+    ///   • same room as you're in → no-op
+    func moveTo(_ newRoom: Room, rooms: RoomRepository = LiveRoomRepository()) async {
+        guard phase == .active, let sessionID = session?.id else { return }
+        guard newRoom.id != roomID else { return }
+        let fromName = chosenRoom?.name
+        let wasInRoom = chosenRoom != nil
+
+        // 1. Departure for the old room if there was one. Mirrors
+        //    the end-session copy: "X stepped out · 24 min".
+        if wasInRoom {
+            await postDepartureIfNeeded(rating: nil)
+        }
+
+        // 2. Server-side update + best-effort room_members join. If
+        //    setRoom fails we bail before posting the new event so
+        //    we don't leave a phantom row in the destination room.
+        do {
+            try? await rooms.join(roomID: newRoom.id)
+            try await sessions.setRoom(sessionID: sessionID, roomID: newRoom.id)
+        } catch {
+            return
+        }
+
+        // 3. Update local mirrors.
+        roomID = newRoom.id
+        chosenRoom = newRoom
+        if var s = session {
+            s.roomID = newRoom.id
+            session = s
+        }
+
+        // 4. Announce in the new room. Move-from-elsewhere reads as
+        //    "X moved over from <fromName>"; solo→room reads as a
+        //    plain arrival ("X has lit up — Padrón 1964").
+        if wasInRoom {
+            await postMoveIfNeeded(fromRoomName: fromName)
+        } else {
+            await postArrivalIfNeeded()
+        }
+    }
+
+    /// Step out of the current room while keeping the cigar burning.
+    /// Posts a departure to the old room and clears `sessions.room_id`.
+    /// User ends up solo with the bar still pinned. No-op if not in a room.
+    func stepOutKeepLit() async {
+        guard phase == .active, let sessionID = session?.id, chosenRoom != nil else { return }
+        await postDepartureIfNeeded(rating: nil)
+        do {
+            try await sessions.setRoom(sessionID: sessionID, roomID: nil)
+        } catch {
+            return
+        }
+        roomID = nil
+        chosenRoom = nil
+        if var s = session {
+            s.roomID = nil
+            session = s
+        }
+    }
+
     func startSession() async {
         do {
             session = try await sessions.start(
@@ -208,6 +272,26 @@ final class SessionViewModel {
             avatarURL: snapshot.avatar
         )
         try? await messages.postSystem(roomID: roomID, kind: .departure, payload: payload)
+    }
+
+    /// Post "X moved over from <fromRoomName>" into the room that
+    /// `roomID` now points to. Caller must update `roomID` first.
+    /// Suppressed for ghost.
+    private func postMoveIfNeeded(fromRoomName: String?) async {
+        guard let roomID, !isGhost else { return }
+        let snapshot = await profileSnapshot()
+        let payload = SystemPayload(
+            cigarBrand: cigar?.brand,
+            cigarLine: cigar?.line,
+            drinkName: drink?.name,
+            durationMinutes: nil,
+            rating: nil,
+            fromRoomName: fromRoomName,
+            toRoomName: nil,
+            displayName: snapshot.name,
+            avatarURL: snapshot.avatar
+        )
+        try? await messages.postSystem(roomID: roomID, kind: .move, payload: payload)
     }
 
     private func profileSnapshot() async -> (name: String, avatar: String?) {

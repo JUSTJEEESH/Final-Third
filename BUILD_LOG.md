@@ -753,6 +753,53 @@ The RealtimeService stub from M-era is gone. Channels are real now.
 
 ---
 
+## 2026-05-07 — Rooms × Sessions, Step 6: Room switching mid-session
+
+The cigar travels with you. Mid-burn, you can wander the lounge and slide into a different room without ending the session. Either room reacts in real time.
+
+**What landed**
+
+- `SessionRepository.setRoom(sessionID:roomID:)` — patches `sessions.room_id` mid-flight. Pass nil to step out into a solo session.
+
+- `SessionViewModel`:
+  - **`moveTo(_:)`** — guarded on `phase == .active`. Three flavors:
+    - **From another room** → posts `departure` to the old room, then `move` to the new room with `from_room_name`. Renders as: *"Marcus stepped out · 24 min"* in the old room, *"Marcus moved over from The Late Shift"* in the new.
+    - **From solo** → no departure, posts a fresh `arrival` in the new room. Reads identically to a Path-A arrival.
+    - **Same room** → no-op.
+    - Best-effort `room_members` join + bail before posting the new event if the server update fails.
+  - **`stepOutKeepLit()`** — guarded same way. Posts `departure` to the old room, sets `sessions.room_id = null`, clears local mirrors. Bar stays pinned, session keeps burning.
+  - **`postMoveIfNeeded(fromRoomName:)`** — same shape as arrival/departure, gated by `!isGhost`.
+
+- `SessionBarView` ellipsis menu rebuilt:
+  - Open session
+  - **Switch room** — fires the `RoomPickerSheet` (60ms tick after dialog dismissal so the sheet doesn't fight the animation). Pick a room → `moveTo`. Pick "Stay solo" → `stepOutKeepLit`.
+  - **Step out (stay lit)** — only shown when `activeRoomID != nil`. Direct call, no picker.
+  - End session
+  - Cancel
+
+- `RoomPickerSheet` + `RoomPickerViewModel` accept `excludeRoomID`. Filters across all three sections so the picker never offers "move to where you already are."
+
+- `RoomView.LightUpHereCTA` `.activeElsewhere` rebuilt:
+  - Two-row layout. Top: *"You're lit at The Velvet Hour"* (or *"You're lit solo right now"*).
+  - Bottom: primary gold capsule **"Move over here"** + ghost **"Open session"** link.
+  - Move tap → `moveTo(this room)` — works whether you were in another room or solo.
+
+- `JournalStatsTests`' `StubSessionRepo` updated for the new protocol method.
+
+**Why this matters**
+
+- The "I'm walking through the lounge with a lit cigar" fantasy is real now. You can ghost into Lounge mid-session, find a room you like, tap a single button, and land there with the room reacting around you (and the previous room saying you stepped out).
+- Step-out-stay-lit gives you a quiet exit ramp from a room without ending the burn — perfect for when a conversation gets weird but you still want the cigar.
+- The `move` event from Step 5 finally has a producer; rooms now show the full vocabulary: arrival, departure, move.
+
+**Visible to user**
+
+- During a session, tap the bar's `…` ellipsis → "Switch room" → picker appears with your current room hidden. Pick another → bar stays pinned, new room name shown, both rooms broadcast the right system events.
+- "Step out (stay lit)" → bar stays, but you're solo. Old room sees "X stepped out · N min".
+- Inside a room while lit elsewhere → "Move over here" gold button → instant transfer.
+
+---
+
 ## Open items (final polish)
 
 - Drop in licensed audio assets per the spec above; verify ambient loops are seamless across AirPods route changes.

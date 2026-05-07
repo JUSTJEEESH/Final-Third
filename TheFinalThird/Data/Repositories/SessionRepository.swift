@@ -10,6 +10,11 @@ protocol SessionRepository: Sendable {
     func saveSummary(sessionID: UUID, flavor: Int, draw: Int, overall: Int,
                      wouldSmokeAgain: Bool, mood: Int, unwind: Bool, notes: String?) async throws
     func delete(id: UUID) async throws
+    /// Updates the session's `room_id` mid-flight. Pass nil to step
+    /// out of the current room while keeping the session burning.
+    /// Used by the "Switch room" / "Step out (stay lit)" affordances
+    /// from the persistent session bar.
+    func setRoom(sessionID: UUID, roomID: UUID?) async throws
 }
 
 struct LiveSessionRepository: SessionRepository {
@@ -100,6 +105,18 @@ struct LiveSessionRepository: SessionRepository {
         try await client.from("sessions")
             .delete()
             .eq("id", value: id.uuidString)
+            .execute()
+    }
+
+    func setRoom(sessionID: UUID, roomID: UUID?) async throws {
+        // Postgres needs an explicit `null` when we step out of a
+        // room. Encoding `Optional<UUID>.none` with the SDK's default
+        // strategy serializes correctly; the eq filter on `id` keeps
+        // RLS happy (sessions_owner policy from 0002).
+        struct Patch: Encodable { let room_id: UUID? }
+        try await client.from("sessions")
+            .update(Patch(room_id: roomID))
+            .eq("id", value: sessionID.uuidString)
             .execute()
     }
 }

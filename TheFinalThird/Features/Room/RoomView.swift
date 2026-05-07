@@ -241,26 +241,58 @@ private struct LightUpHereCTA: View {
     }
 
     private func elsewhereTile(otherRoomName: String) -> some View {
-        HStack(spacing: FTSpace.sm) {
-            Image(systemName: "moon.stars.fill")
-                .foregroundStyle(FTColor.inkFaint)
-                .font(.system(size: 12))
-            Text(otherRoomName == "solo"
-                 ? "You're lit solo right now."
-                 : "You're lit at \(otherRoomName).")
-                .font(FTType.caption(12))
-                .foregroundStyle(FTColor.inkMuted)
-            Spacer()
-            Button("Open") {
-                HapticsService.shared.tap()
-                container.session.expand()
+        // Two-row layout — line of context, then a row with the
+        // primary "Move over here" action and a quieter "Open" link
+        // back to the current session screen. Move over here is the
+        // most magnetic action in the app: walking through the
+        // lounge with a lit cigar and stepping into a better room.
+        VStack(alignment: .leading, spacing: FTSpace.sm) {
+            HStack(spacing: 6) {
+                Image(systemName: "moon.stars.fill")
+                    .foregroundStyle(FTColor.inkFaint)
+                    .font(.system(size: 12))
+                Text(otherRoomName == "solo"
+                     ? "You're lit solo right now."
+                     : "You're lit at \(otherRoomName).")
+                    .font(FTType.caption(12))
+                    .foregroundStyle(FTColor.inkMuted)
+                Spacer(minLength: 0)
             }
-            .font(FTType.caption(12, weight: .semibold))
-            .foregroundStyle(FTColor.gold)
-            .buttonStyle(.plain)
+
+            HStack(spacing: FTSpace.sm) {
+                Button {
+                    HapticsService.shared.tap()
+                    guard let room = vm.room else { return }
+                    Task { await container.session.current?.moveTo(room) }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.right.circle.fill")
+                            .font(.system(size: 13))
+                        Text("Move over here")
+                            .font(FTType.caption(12, weight: .semibold))
+                    }
+                    .foregroundStyle(FTColor.inkInverse)
+                    .padding(.horizontal, FTSpace.md)
+                    .padding(.vertical, 7)
+                    .background(GoldSurface())
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .disabled(vm.room == nil)
+
+                Button("Open session") {
+                    HapticsService.shared.tap()
+                    container.session.expand()
+                }
+                .font(FTType.caption(12, weight: .semibold))
+                .foregroundStyle(FTColor.gold)
+                .buttonStyle(.plain)
+
+                Spacer()
+            }
         }
         .padding(.horizontal, FTSpace.lg)
-        .padding(.vertical, FTSpace.sm)
+        .padding(.vertical, FTSpace.sm + 2)
         .background(FTColor.surface)
         .clipShape(RoundedRectangle(cornerRadius: FTRadius.md, style: .continuous))
     }

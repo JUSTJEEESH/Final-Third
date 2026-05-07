@@ -12,6 +12,7 @@ struct SessionBarView: View {
     @Environment(AppContainer.self) private var container
     @State private var showActions = false
     @State private var showEndConfirm = false
+    @State private var showSwitchRoom = false
 
     var body: some View {
         if container.session.isBurning,
@@ -83,6 +84,20 @@ struct SessionBarView: View {
             titleVisibility: .hidden
         ) {
             Button("Open session") { container.session.expand() }
+            Button("Switch room") {
+                // Defer one runloop tick so the dialog dismissal
+                // animation finishes before the sheet rises — without
+                // this the sheet sometimes refuses to present.
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(60))
+                    showSwitchRoom = true
+                }
+            }
+            if container.session.activeRoomID != nil {
+                Button("Step out (stay lit)") {
+                    Task { await container.session.current?.stepOutKeepLit() }
+                }
+            }
             Button("End session", role: .destructive) { showEndConfirm = true }
             Button("Cancel", role: .cancel) {}
         }
@@ -97,6 +112,25 @@ struct SessionBarView: View {
             }
         } message: {
             Text("We'll ask how it was, then it lands in your Journal.")
+        }
+        .sheet(isPresented: $showSwitchRoom) {
+            // Reuse the doorway picker — same component, different
+            // moment. Picking a room → moveTo(); picking "Stay solo"
+            // → stepOutKeepLit(). Both keep the cigar burning.
+            RoomPickerSheet(
+                excludeRoomID: container.session.activeRoomID,
+                onPick: { room in
+                    Task {
+                        if let room {
+                            await container.session.current?.moveTo(room)
+                        } else {
+                            await container.session.current?.stepOutKeepLit()
+                        }
+                    }
+                }
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
         }
     }
 }

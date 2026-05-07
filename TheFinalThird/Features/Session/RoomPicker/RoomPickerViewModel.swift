@@ -15,6 +15,10 @@ final class RoomPickerViewModel {
     var rooms: [Room] = []
     var liveByRoom: [UUID: LiveNowSummary] = [:]
     var isLoading = true
+    /// If set, this room is hidden from every section. Used by the
+    /// mid-session "Switch room" path so we don't offer to move into
+    /// the room we're already in.
+    var excludeRoomID: UUID?
 
     private let roomRepo: RoomRepository
 
@@ -52,7 +56,7 @@ final class RoomPickerViewModel {
     /// Rooms with at least one active (non-ghost) smoker, ordered by
     /// liveCount desc — the most-alive first.
     var liveRooms: [Room] {
-        rooms
+        visibleRooms
             .filter { (liveByRoom[$0.id]?.liveCount ?? 0) > 0 }
             .sorted { (liveByRoom[$0.id]?.liveCount ?? 0)
                   > (liveByRoom[$1.id]?.liveCount ?? 0) }
@@ -61,7 +65,7 @@ final class RoomPickerViewModel {
     /// Public chat rooms with no live smokers — the "by the window"
     /// section. Quiet corners. Patron host-able rooms surface here too.
     var topicRooms: [Room] {
-        rooms.filter {
+        visibleRooms.filter {
             $0.mode == .chat
                 && !$0.isPrivate
                 && (liveByRoom[$0.id]?.liveCount ?? 0) == 0
@@ -70,6 +74,11 @@ final class RoomPickerViewModel {
 
     /// Voice-mode rooms. Patron-locked at selection time.
     var voiceRooms: [Room] {
-        rooms.filter { $0.mode == .voice }
+        visibleRooms.filter { $0.mode == .voice }
+    }
+
+    private var visibleRooms: [Room] {
+        guard let excludeRoomID else { return rooms }
+        return rooms.filter { $0.id != excludeRoomID }
     }
 }
