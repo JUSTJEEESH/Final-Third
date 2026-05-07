@@ -66,7 +66,9 @@ struct SettingsView: View {
                                 title: "Allow voice rooms",
                                 subtitle: "You're always muted by default. Hold to talk.",
                                 value: profile?.voiceEnabled ?? false
-                            ) { Task { await update(voiceEnabled: $0) } }
+                            ) { newValue in
+                                Task { await update(voiceEnabled: newValue) }
+                            }
                         }
 
                         section(title: "PRIVACY") {
@@ -74,7 +76,9 @@ struct SettingsView: View {
                                 title: "Ghost by default",
                                 subtitle: "Step in invisibly. No notifications fire on arrival.",
                                 value: profile?.ghostModeDefault ?? false
-                            ) { Task { await update(ghostDefault: $0) } }
+                            ) { newValue in
+                                Task { await update(ghostDefault: newValue) }
+                            }
                         }
 
                         section(title: "NOTIFICATIONS") {
