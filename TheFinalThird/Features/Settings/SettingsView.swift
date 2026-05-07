@@ -219,7 +219,11 @@ struct SettingsView: View {
         title: String,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(alignment: .leading, spacing: FTSpace.sm) {
+        // Build the inner view eagerly so FTCard's stored (escaping)
+        // body closure captures the resulting View, not the
+        // non-escaping input closure parameter.
+        let inner = content()
+        return VStack(alignment: .leading, spacing: FTSpace.sm) {
             Text(title)
                 .font(FTType.caption(10, weight: .semibold))
                 .tracking(1.6)
@@ -227,7 +231,7 @@ struct SettingsView: View {
                 .padding(.horizontal, FTSpace.md)
             FTCard(padding: FTSpace.lg, texture: .leather, textureIntensity: 0.14) {
                 VStack(spacing: 0) {
-                    content()
+                    inner
                 }
             }
         }
