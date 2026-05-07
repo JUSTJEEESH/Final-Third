@@ -5,7 +5,7 @@ struct ProfileView: View {
     @State private var vm: ProfileViewModel?
     @State private var showSettings = false
     @State private var showUsual = false
-    @State private var showAvatarComingSoon = false
+    @State private var showAvatarPicker = false
 
     var body: some View {
         NavigationStack {
@@ -26,6 +26,13 @@ struct ProfileView: View {
         }
         .sheet(isPresented: $showSettings) { SettingsView() }
         .sheet(isPresented: $showUsual) { TheUsualEditor() }
+        .sheet(isPresented: $showAvatarPicker) {
+            if case .signedIn(let userID) = container.auth.state {
+                AvatarPickerView(userID: userID) { _ in
+                    Task { await vm?.load() }
+                }
+            }
+        }
         .task {
             if vm == nil, case .signedIn(let userID) = container.auth.state {
                 vm = ProfileViewModel(userID: userID)
@@ -80,7 +87,7 @@ struct ProfileView: View {
         HStack(spacing: FTSpace.md) {
             Button {
                 HapticsService.shared.tap()
-                showAvatarComingSoon = true
+                showAvatarPicker = true
             } label: {
                 ZStack(alignment: .bottomTrailing) {
                     AvatarView(
@@ -114,12 +121,6 @@ struct ProfileView: View {
             Spacer()
         }
         .padding(.top, FTSpace.lg)
-        .alert("Photo upload — coming soon",
-               isPresented: $showAvatarComingSoon) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("Photo picker + storage upload land in the next update. For now your initials are doing the lifting.")
-        }
     }
 
     private func statsRow(vm: ProfileViewModel) -> some View {

@@ -9,6 +9,9 @@ protocol ProfileRepository: Sendable {
         voiceEnabled: Bool?,
         ghostModeDefault: Bool?
     ) async throws
+    /// Uploads JPEG data to `avatars/<userID>/avatar.jpg`, updates the
+    /// user's `avatar_url`, and returns the cache-busted public URL.
+    func uploadAvatar(data: Data, userID: UUID) async throws -> URL
 }
 
 struct LiveProfileRepository: ProfileRepository {
@@ -79,5 +82,42 @@ struct LiveProfileRepository: ProfileRepository {
             .update(patch)
             .eq("id", value: userID.uuidString)
             .execute()
+    }
+
+    func uploadAvatar(data: Data, userID: UUID) async throws -> URL {
+        let path = "\(userID.uuidString)/avatar.jpg"
+        let storage = client.storage.from("avatars")
+
+        // upsert: true so re-uploads replace the existing avatar at this
+        // path. Bucket is public (migration 0008) so no signed URL needed
+        // for display.
+        _ = try await storage.upload(
+            path,
+            data: data,
+            options: FileOptions(
+                cacheControl: "3600",
+                contentType: "image/jpeg",
+                upsert: true
+            )
+        )
+
+        // Cache-bust the public URL with a `v=<timestamp>` query so
+        // AsyncImage refreshes when the user uploads a new photo. The
+        // storage URL itself is stable; clients key their image cache by
+        // the full URL string.
+        let publicURL = try storage.getPublicURL(path: path)
+        var components = URLComponents(url: publicURL, resolvingAgainstBaseURL: false)
+        components?.queryItems = [
+            URLQueryItem(name: "v", value: String(Int(Date.now.timeIntervalSince1970))),
+        ]
+        let bustedURL = components?.url ?? publicURL
+
+        struct Patch: Encodable { let avatar_url: String }
+        try await client.from("profiles")
+            .update(Patch(avatar_url: bustedURL.absoluteString))
+            .eq("id", value: userID.uuidString)
+            .execute()
+
+        return bustedURL
     }
 }
