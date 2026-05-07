@@ -37,8 +37,9 @@ struct LiveProfileRepository: ProfileRepository {
             let handle: String?
             let avatar_url: String?
             let bio: String?
+            let country: String?
             let city: String?
-            let is_honduras_local: Bool
+            let is_local: Bool
             let audio_theme: String?
             let voice_enabled: Bool
             let ghost_mode_default: Bool
@@ -50,8 +51,9 @@ struct LiveProfileRepository: ProfileRepository {
             handle: profile.handle,
             avatar_url: profile.avatarURL?.absoluteString,
             bio: profile.bio,
+            country: profile.country,
             city: profile.city,
-            is_honduras_local: profile.isHondurasLocal,
+            is_local: profile.isLocal,
             audio_theme: profile.audioTheme?.rawValue,
             voice_enabled: profile.voiceEnabled,
             ghost_mode_default: profile.ghostModeDefault,

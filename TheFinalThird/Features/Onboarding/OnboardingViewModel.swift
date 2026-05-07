@@ -50,8 +50,12 @@ final class OnboardingViewModel {
     var avatarURL: URL?
 
     // Step: location
+    /// ISO 3166-1 alpha-2 country code (e.g. "HN", "US", "JP"). Nil
+    /// until the user picks one. Defaults to the device's current
+    /// region in `init` so the picker isn't empty.
+    var country: String?
     var city: String = ""
-    var isHondurasLocal: Bool = false
+    var isLocal: Bool = false
     let timezone: String = TimeZone.current.identifier
 
     // Step: the usual
@@ -104,6 +108,13 @@ final class OnboardingViewModel {
         self.onComplete = onComplete
         if let presetDisplayName, !presetDisplayName.isEmpty {
             self.displayName = presetDisplayName
+        }
+        // Seed the country picker with the device's region so users
+        // usually only need to confirm. They can change it freely.
+        if let regionCode = Locale.current.region?.identifier,
+           Locale.Region.isoRegions.contains(where: { $0.identifier == regionCode })
+        {
+            self.country = regionCode
         }
     }
 
@@ -176,8 +187,9 @@ final class OnboardingViewModel {
             handle: handle.trimmingCharacters(in: .whitespaces).isEmpty ? nil : handle,
             avatarURL: avatarURL,
             bio: bio.isEmpty ? nil : bio,
+            country: country,
             city: city.isEmpty ? nil : city,
-            isHondurasLocal: isHondurasLocal,
+            isLocal: isLocal,
             isPremium: false,
             audioTheme: audioTheme,
             voiceEnabled: voiceEnabled,
