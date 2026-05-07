@@ -5,6 +5,7 @@ struct ProfileView: View {
     @State private var vm: ProfileViewModel?
     @State private var showSettings = false
     @State private var showUsual = false
+    @State private var showAvatarComingSoon = false
 
     var body: some View {
         NavigationStack {
@@ -77,12 +78,30 @@ struct ProfileView: View {
 
     private func header(vm: ProfileViewModel) -> some View {
         HStack(spacing: FTSpace.md) {
-            AvatarView(
-                url: vm.profile?.avatarURL,
-                initials: vm.profile?.initials ?? "··",
-                size: 56,
-                isActive: true
-            )
+            Button {
+                HapticsService.shared.tap()
+                showAvatarComingSoon = true
+            } label: {
+                ZStack(alignment: .bottomTrailing) {
+                    AvatarView(
+                        url: vm.profile?.avatarURL,
+                        initials: vm.profile?.initials ?? "··",
+                        size: 64,
+                        isActive: true
+                    )
+                    // Camera badge — affordance that this is tappable.
+                    Image(systemName: "camera.fill")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(FTColor.inkInverse)
+                        .frame(width: 22, height: 22)
+                        .background(FTColor.gold)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(FTColor.background, lineWidth: 2))
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Change profile photo")
+
             VStack(alignment: .leading, spacing: 2) {
                 Text(vm.profile?.displayName ?? "—").font(FTType.heading(20))
                 if let handle = vm.profile?.handle {
@@ -95,6 +114,12 @@ struct ProfileView: View {
             Spacer()
         }
         .padding(.top, FTSpace.lg)
+        .alert("Photo upload — coming soon",
+               isPresented: $showAvatarComingSoon) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Photo picker + storage upload land in the next update. For now your initials are doing the lifting.")
+        }
     }
 
     private func statsRow(vm: ProfileViewModel) -> some View {

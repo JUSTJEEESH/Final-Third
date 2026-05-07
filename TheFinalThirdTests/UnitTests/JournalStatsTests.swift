@@ -67,6 +67,7 @@ private struct StubSessionRepo: SessionRepository, @unchecked Sendable {
     func finish(_ session: Session) async throws -> Session { session }
     func saveSummary(sessionID: UUID, flavor: Int, draw: Int, overall: Int,
                      wouldSmokeAgain: Bool, mood: Int, unwind: Bool, notes: String?) async throws {}
+    func delete(id: UUID) async throws {}
 }
 
 private struct StubCigarRepo: CigarRepository {

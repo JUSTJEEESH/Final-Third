@@ -9,6 +9,7 @@ protocol SessionRepository: Sendable {
     func finish(_ session: Session) async throws -> Session
     func saveSummary(sessionID: UUID, flavor: Int, draw: Int, overall: Int,
                      wouldSmokeAgain: Bool, mood: Int, unwind: Bool, notes: String?) async throws
+    func delete(id: UUID) async throws
 }
 
 struct LiveSessionRepository: SessionRepository {
@@ -90,6 +91,15 @@ struct LiveSessionRepository: SessionRepository {
                 unwind_success: unwind, notes: notes
             ))
             .eq("id", value: sessionID.uuidString)
+            .execute()
+    }
+
+    /// Permanent removal. RLS allows owner-only via the sessions_owner
+    /// policy from migration 0002.
+    func delete(id: UUID) async throws {
+        try await client.from("sessions")
+            .delete()
+            .eq("id", value: id.uuidString)
             .execute()
     }
 }

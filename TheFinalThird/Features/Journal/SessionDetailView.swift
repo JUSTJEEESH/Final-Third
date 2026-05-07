@@ -17,6 +17,8 @@ struct SessionDetailView: View {
     @State private var cigar: Cigar?
     @State private var drink: Drink?
     @State private var error: String?
+    @State private var showDeleteConfirm = false
+    @State private var isDeleting = false
 
     private let sessionsRepo: SessionRepository = LiveSessionRepository()
     private let cigarsRepo: CigarRepository = LiveCigarRepository()
@@ -30,7 +32,39 @@ struct SessionDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(FTColor.background, for: .navigationBar)
         .toolbarColorScheme(.dark, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    HapticsService.shared.tap()
+                    showDeleteConfirm = true
+                } label: {
+                    Image(systemName: "trash")
+                        .foregroundStyle(FTColor.danger.opacity(0.85))
+                }
+                .disabled(isDeleting || session == nil)
+                .accessibilityLabel("Delete session")
+            }
+        }
+        .alert("Delete this session?", isPresented: $showDeleteConfirm) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) {
+                Task { await deleteSession() }
+            }
+        } message: {
+            Text("This is permanent. Notes, ratings, and the cigar pairing will all be erased. This can't be undone.")
+        }
         .task { await load() }
+    }
+
+    private func deleteSession() async {
+        isDeleting = true; defer { isDeleting = false }
+        do {
+            try await sessionsRepo.delete(id: sessionID)
+            HapticsService.shared.warning()
+            dismiss()
+        } catch {
+            self.error = "Couldn't delete: \(error.localizedDescription)"
+        }
     }
 
     @ViewBuilder

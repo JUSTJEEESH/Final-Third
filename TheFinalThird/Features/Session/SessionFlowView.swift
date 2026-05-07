@@ -18,14 +18,27 @@ struct SessionFlowView: View {
     @State private var vm: SessionViewModel?
     @State private var cigars: [Cigar] = []
     @State private var drinks: [Drink] = []
+    @State private var showCancelConfirm = false
 
     private let cigarRepo: CigarRepository = LiveCigarRepository()
     private let drinkRepo: DrinkRepository = LiveDrinkRepository()
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .topLeading) {
             FTColor.background.ignoresSafeArea()
+            TexturePanel(texture: .leather, opacity: 0.08, zoom: 1.4)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
             if let vm { phase(vm) } else { ProgressView().tint(FTColor.gold) }
+
+            // Cancel button — shows on the picker steps and the ceremony.
+            // During the active session it's hidden because we have a
+            // proper End Session affordance with its own confirmation.
+            if let vm, showsCancel(for: vm.phase) {
+                cancelButton(vm: vm)
+                    .padding(.top, FTSpace.md)
+                    .padding(.leading, FTSpace.lg)
+            }
         }
         .task {
             if vm == nil {
@@ -36,6 +49,45 @@ struct SessionFlowView: View {
             }
             await loadCatalog()
         }
+        .alert("Cancel and step out?", isPresented: $showCancelConfirm) {
+            Button("Stay", role: .cancel) {}
+            Button("Step out", role: .destructive) { dismiss() }
+        } message: {
+            Text("Your selections won't be saved.")
+        }
+    }
+
+    private func showsCancel(for phase: SessionViewModel.Phase) -> Bool {
+        switch phase {
+        case .selectingCigar, .selectingDrink, .selectingLightingMethod, .lighting:
+            return true
+        case .active, .summary, .finished:
+            return false
+        }
+    }
+
+    private func cancelButton(vm: SessionViewModel) -> some View {
+        Button {
+            HapticsService.shared.tap()
+            // Cigar picker — no selection yet, just dismiss.
+            // Anywhere else — confirm.
+            if vm.phase == .selectingCigar {
+                dismiss()
+            } else {
+                showCancelConfirm = true
+            }
+        } label: {
+            Image(systemName: "xmark")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(FTColor.ink)
+                .frame(width: 36, height: 36)
+                .background(FTColor.surfaceHi.opacity(0.9))
+                .clipShape(Circle())
+                .overlay(
+                    Circle().stroke(FTColor.divider, lineWidth: FTStroke.hairline)
+                )
+        }
+        .accessibilityLabel("Cancel")
     }
 
     @ViewBuilder
@@ -278,27 +330,101 @@ private struct PickerHeader: View {
 
 private struct ActiveSessionView: View {
     @Bindable var vm: SessionViewModel
+    @State private var showEndConfirm = false
 
     var body: some View {
-        VStack(spacing: FTSpace.lg) {
-            if let s = vm.session {
-                BurnTimerView(session: s)
-                    .padding(.horizontal, FTSpace.lg)
-            }
-            if let cigar = vm.cigar {
-                VStack(spacing: 2) {
-                    Text(cigar.brand.uppercased())
-                        .font(FTType.caption(11, weight: .semibold))
-                        .foregroundStyle(FTColor.inkMuted)
-                    Text(cigar.line).font(FTType.heading(20))
+        ZStack {
+            // Atmospheric background — warm overhead glow seeping in
+            // from the top, leather grain underneath the ceremony space.
+            FTColor.background.ignoresSafeArea()
+            RadialGradient(
+                colors: [FTColor.ember.opacity(0.10), .clear],
+                center: UnitPoint(x: 0.5, y: -0.05),
+                startRadius: 0, endRadius: 420
+            )
+            .ignoresSafeArea()
+
+            VStack(spacing: FTSpace.lg) {
+                Text("IN SESSION")
+                    .font(FTType.caption(11, weight: .semibold))
+                    .tracking(2.4)
+                    .foregroundStyle(FTColor.gold)
+                    .padding(.top, FTSpace.xxl)
+
+                // Cigar identity — display title, subtle vitola.
+                if let cigar = vm.cigar {
+                    VStack(spacing: 4) {
+                        Text(cigar.brand.uppercased())
+                            .font(FTType.caption(11, weight: .semibold))
+                            .tracking(1.6)
+                            .foregroundStyle(FTColor.gold.opacity(0.85))
+                        Text(cigar.line)
+                            .font(FTType.display(28, weight: .semibold))
+                            .foregroundStyle(FTColor.ink)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, FTSpace.xl)
+                        if let v = cigar.vitola {
+                            Text(v)
+                                .font(FTType.caption(12))
+                                .foregroundStyle(FTColor.inkMuted)
+                        }
+                    }
                 }
+
+                // Burn timer ring — the centerpiece.
+                if let s = vm.session {
+                    BurnTimerView(session: s)
+                        .padding(.horizontal, FTSpace.xxl)
+                        .padding(.vertical, FTSpace.md)
+                }
+
+                // Pairing chips — drink + lighting method, gold-bordered.
+                HStack(spacing: FTSpace.sm) {
+                    chip(icon: "flame.fill", text: vm.lightingMethod.displayName,
+                         tint: FTColor.gold)
+                    if let drink = vm.drink {
+                        chip(icon: "wineglass", text: drink.name, tint: FTColor.inkMuted)
+                    }
+                }
+
+                Spacer()
+
+                // End session — ghost style so it doesn't compete with
+                // the cigar identity above. Confirmation alert prevents
+                // accidental commits.
+                FTButton(title: "End session", style: .ghost) {
+                    HapticsService.shared.tap()
+                    showEndConfirm = true
+                }
+                .padding(.horizontal, FTSpace.xl)
+                .padding(.bottom, FTSpace.xl)
             }
-            Spacer()
-            FTButton(title: "End session", style: .ghost) {
+        }
+        .alert("End your session?", isPresented: $showEndConfirm) {
+            Button("Keep going", role: .cancel) {}
+            Button("End it") {
                 Task { await vm.endSession() }
             }
-            .padding(.horizontal, FTSpace.xl)
+        } message: {
+            Text("We'll ask how it was, then it lands in your Journal.")
         }
-        .padding(.top, FTSpace.xxl)
+    }
+
+    private func chip(icon: String, text: String, tint: Color) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon).font(.system(size: 11))
+            Text(text).font(FTType.caption(12, weight: .medium))
+        }
+        .foregroundStyle(tint == FTColor.gold ? FTColor.ink : tint)
+        .padding(.horizontal, FTSpace.md)
+        .padding(.vertical, FTSpace.sm)
+        .background(FTColor.surface)
+        .clipShape(Capsule())
+        .overlay(
+            Capsule().stroke(
+                tint == FTColor.gold ? FTColor.gold.opacity(0.45) : FTColor.divider,
+                lineWidth: FTStroke.hairline
+            )
+        )
     }
 }
