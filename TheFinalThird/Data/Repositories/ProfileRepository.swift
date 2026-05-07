@@ -85,7 +85,13 @@ struct LiveProfileRepository: ProfileRepository {
     }
 
     func uploadAvatar(data: Data, userID: UUID) async throws -> URL {
-        let path = "\(userID.uuidString)/avatar.jpg"
+        // Path must use the lowercase UUID — Postgres `auth.uid()::text`
+        // is lowercase, and the avatars_insert_own RLS policy compares
+        // it against `(storage.foldername(name))[1]` as a plain string.
+        // Swift's UUID.uuidString returns uppercase, so without
+        // .lowercased() the storage write fails with
+        // "new row violates row-level security policy".
+        let path = "\(userID.uuidString.lowercased())/avatar.jpg"
         let storage = client.storage.from("avatars")
 
         // upsert: true so re-uploads replace the existing avatar at this
