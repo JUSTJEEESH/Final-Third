@@ -541,6 +541,41 @@ Without global session state, every other surface (room bar, "Pull up a chair" p
 
 ---
 
+## 2026-05-07 — Rooms × Sessions, Step 2: Persistent session bar
+
+**What landed**
+
+- `SessionState` learned three new behaviors:
+  - `isFlowPresented` — a single `@Observable` flag that drives the cover. Bind from anywhere, flip from anywhere.
+  - `expand()` — bring the cover back to front (idempotent, no-op if there's no active VM).
+  - `minimize()` — close the cover but keep the session burning.
+  - `clear()` now also flips `isFlowPresented = false` so teardown is one call.
+- `Features/Session/SessionBarView.swift` — new pinned strip:
+  - Pulsing ember dot (3-second breathe)
+  - Cigar brand (eyebrow) + line (heading)
+  - Live "X min" via `TimelineView(.periodic(every: 30s))` with monospaced digits
+  - Ellipsis → confirmation dialog: Open session / End session
+  - Tap body → `expand()`
+  - Leather grain + warm ember bleed background, gold hairline beneath
+  - Renders only when `isBurning && !isFlowPresented`, transitions in from the top
+- `MainTabView` hosts both the bar and the cover. The cover moves up out of `HomeView` because the session is global — it has to be presentable from any tab.
+  - `@Bindable var session = container.session` bridges the observable into a binding.
+  - Animations on `isBurning` and `isFlowPresented` so the bar slides in and the tab content reflows smoothly.
+- `ActiveSessionView` got a top-right chevron-down "minimize" button. Tap → cover slides away, session bar takes over, you can browse Lounge/Journal/Profile while the cigar burns.
+- `HomeView` lost its `showLightUp` state and `fullScreenCover`. The Light Up button now: `beginFlow(...)` (if no session) → `expand()`. Re-tapping Light Up while a session is already burning just re-opens it.
+- `SessionFlowView` cancel + `.finished` paths use `container.session.clear()` exclusively. Removed the `@Environment(\.dismiss)` since the cover dismisses via the binding.
+
+**Why this matters**
+
+- The session is no longer trapped inside one view's lifecycle. Walk into Lounge while burning — the bar follows. Tap an avatar in Journal — the bar follows. End the session anywhere → summary cover springs back so you can rate the night.
+- Loaded for Step 3 ("Where are you sitting?" sheet) and Step 4 (in-room session UX) — both depend on the cover being controlled from outside its own view tree.
+
+**Visible to user**
+
+- Light up, then minimize with the new chevron-down → bar appears at the top with cigar name + live timer + ellipsis menu. Browse the app freely. Tap the bar → back to the active session full-screen.
+
+---
+
 ## Open items (final polish)
 
 - Drop in licensed audio assets per the spec above; verify ambient loops are seamless across AirPods route changes.

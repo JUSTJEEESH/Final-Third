@@ -32,10 +32,20 @@ struct MainTabView: View {
         }
     }
 
+    @Environment(AppContainer.self) private var container
     @State private var selection: Tab = .home
 
     var body: some View {
+        // @Bindable bridges the @Observable container.session into a
+        // SwiftUI binding for the fullScreenCover modifier below.
+        @Bindable var session = container.session
+
         VStack(spacing: 0) {
+            // Persistent session bar — shows itself when isBurning &&
+            // !isFlowPresented. Animation is on the parent so the
+            // tab content slides smoothly when the bar appears.
+            SessionBarView()
+
             Group {
                 switch selection {
                 case .home:    HomeView()
@@ -49,7 +59,16 @@ struct MainTabView: View {
 
             FTTabBar(selection: $selection)
         }
+        .animation(FTMotion.easeOutSoft, value: session.isBurning)
+        .animation(FTMotion.easeOutSoft, value: session.isFlowPresented)
         .ignoresSafeArea(edges: .bottom)
+        // The session flow lives at the tab-bar level so it can
+        // present from anywhere — not just Home — and so the persistent
+        // bar can re-expand it. Setting isFlowPresented = false
+        // minimizes; clear() ends + closes.
+        .fullScreenCover(isPresented: $session.isFlowPresented) {
+            SessionFlowView()
+        }
     }
 }
 

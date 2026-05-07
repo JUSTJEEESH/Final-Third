@@ -4,7 +4,6 @@ struct HomeView: View {
     @Environment(AppContainer.self) private var container
     @Environment(DeepLinkRouter.self) private var router
     @State private var vm: HomeViewModel?
-    @State private var showLightUp = false
     @State private var showUsualEditor = false
 
     var body: some View {
@@ -29,12 +28,6 @@ struct HomeView: View {
                 )
                 await vm?.load()
             }
-        }
-        .fullScreenCover(isPresented: $showLightUp) {
-            // SessionFlowView reads from container.session.current, so
-            // the VM has to be created *before* the cover comes up. We
-            // do that in lightUpButton's tap handler.
-            SessionFlowView()
         }
         .sheet(isPresented: $showUsualEditor,
                onDismiss: { Task { await vm?.load() } }) {
@@ -81,10 +74,14 @@ struct HomeView: View {
     private var lightUpButton: some View {
         Button {
             HapticsService.shared.tap()
-            // Spin up the session flow's VM in the global SessionState
-            // *before* presenting the cover. The cover binds to
-            // container.session.current, so it must exist at present-time.
-            if case .signedIn(let userID) = container.auth.state {
+            // Two steps: spin up the global SessionState VM, then ask
+            // it to expand. MainTabView owns the cover, so we don't
+            // present anything from here — we just flip the flag.
+            // If a session is already in flight (user lit up earlier
+            // and minimized), `expand()` just re-opens the cover.
+            if container.session.current == nil,
+               case .signedIn(let userID) = container.auth.state
+            {
                 container.session.beginFlow(
                     userID: userID,
                     roomID: nil,
@@ -92,7 +89,7 @@ struct HomeView: View {
                     analytics: container.analytics
                 )
             }
-            showLightUp = true
+            container.session.expand()
         } label: {
             HStack(spacing: FTSpace.md) {
                 Image(systemName: "flame.fill")

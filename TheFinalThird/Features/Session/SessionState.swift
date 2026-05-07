@@ -22,6 +22,14 @@ final class SessionState {
     /// "Light up" until the summary is dismissed.
     var current: SessionViewModel?
 
+    /// Whether the full session flow cover is currently on screen.
+    /// Bound to a single fullScreenCover in MainTabView so any surface
+    /// (Light Up button, session-bar tap, room "Light up here" CTA) can
+    /// expand the cover by setting this true. Setting false minimizes —
+    /// the session keeps burning in the background and the persistent
+    /// session bar takes over.
+    var isFlowPresented: Bool = false
+
     /// True while the cigar is actually burning (post-ceremony,
     /// pre-summary). Used to decide whether to render the session bar.
     var isBurning: Bool {
@@ -68,5 +76,19 @@ final class SessionState {
     /// user cancels. Pinned UI listening to `current` will dismiss.
     func clear() {
         current = nil
+        isFlowPresented = false
+    }
+
+    /// Bring the full session flow back to the front. Used by the
+    /// session bar's tap target and any "open session" affordance.
+    func expand() {
+        guard current != nil else { return }
+        isFlowPresented = true
+    }
+
+    /// Hide the cover but keep the session running — the user wants to
+    /// browse the rest of the app while their cigar continues to burn.
+    func minimize() {
+        isFlowPresented = false
     }
 }

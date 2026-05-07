@@ -15,7 +15,6 @@ import SwiftUI
 /// the session lifecycle.
 struct SessionFlowView: View {
     @Environment(AppContainer.self) private var container
-    @Environment(\.dismiss) private var dismiss
 
     @State private var cigars: [Cigar] = []
     @State private var drinks: [Drink] = []
@@ -50,8 +49,8 @@ struct SessionFlowView: View {
         .alert("Cancel and step out?", isPresented: $showCancelConfirm) {
             Button("Stay", role: .cancel) {}
             Button("Step out", role: .destructive) {
+                // Full teardown — wipes the VM and closes the cover.
                 container.session.clear()
-                dismiss()
             }
         } message: {
             Text("Your selections won't be saved.")
@@ -70,10 +69,11 @@ struct SessionFlowView: View {
     private func cancelButton(vm: SessionViewModel) -> some View {
         Button {
             HapticsService.shared.tap()
-            // Cigar picker — no selection yet, just dismiss.
-            // Anywhere else — confirm.
+            // Cigar picker — no selection yet, just close. Anywhere
+            // else — confirm so an accidental tap doesn't lose the
+            // ceremony state.
             if vm.phase == .selectingCigar {
-                dismiss()
+                container.session.clear()
             } else {
                 showCancelConfirm = true
             }
@@ -112,7 +112,6 @@ struct SessionFlowView: View {
         case .finished:
             Color.clear.onAppear {
                 container.session.clear()
-                dismiss()
             }
         }
     }
@@ -334,11 +333,12 @@ private struct PickerHeader: View {
 // MARK: - Active session
 
 private struct ActiveSessionView: View {
+    @Environment(AppContainer.self) private var container
     @Bindable var vm: SessionViewModel
     @State private var showEndConfirm = false
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .topTrailing) {
             // Atmospheric background — warm overhead glow seeping in
             // from the top, leather grain underneath the ceremony space.
             FTColor.background.ignoresSafeArea()
@@ -348,6 +348,28 @@ private struct ActiveSessionView: View {
                 startRadius: 0, endRadius: 420
             )
             .ignoresSafeArea()
+
+            // Minimize affordance — drops the cover so the user can
+            // browse the rest of the app while the cigar burns. The
+            // session bar at the top of MainTabView takes over.
+            Button {
+                HapticsService.shared.tap()
+                container.session.minimize()
+            } label: {
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(FTColor.ink)
+                    .frame(width: 36, height: 36)
+                    .background(FTColor.surfaceHi.opacity(0.85))
+                    .clipShape(Circle())
+                    .overlay(
+                        Circle().stroke(FTColor.divider, lineWidth: FTStroke.hairline)
+                    )
+            }
+            .padding(.top, FTSpace.md)
+            .padding(.trailing, FTSpace.lg)
+            .accessibilityLabel("Minimize session")
+            .zIndex(1)
 
             VStack(spacing: FTSpace.lg) {
                 Text("IN SESSION")
