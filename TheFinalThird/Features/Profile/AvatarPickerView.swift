@@ -1,13 +1,15 @@
 import PhotosUI
 import SwiftUI
+import UIKit
 
-/// Lets the user pick a photo from their library and upload it as their
-/// profile photo. Crops to a centered square and downscales to 512×512
-/// before encoding to JPEG so we never push a 12 MP photo to storage.
+/// Lets the user pick a photo *or* take a new one with the camera and
+/// upload it as their profile photo. Crops to a centered square and
+/// downscales to 512×512 before encoding to JPEG so we never push a
+/// 12 MP photo to storage.
 ///
-/// Uses SwiftUI's `PhotosPicker` (PHPicker out-of-process) so we don't
-/// require `NSPhotoLibraryUsageDescription` and the user's library is
-/// never directly accessed by the app.
+/// `PhotosPicker` covers the library path (no permission needed — it's
+/// out-of-process). `CameraImagePicker` covers the camera path and
+/// uses the existing `NSCameraUsageDescription` from project.yml.
 struct AvatarPickerView: View {
     let userID: UUID
     /// Called once the upload completes successfully with the new
@@ -19,6 +21,7 @@ struct AvatarPickerView: View {
     @State private var previewImage: UIImage?
     @State private var isUploading = false
     @State private var error: String?
+    @State private var showCamera = false
 
     private let repo: ProfileRepository = LiveProfileRepository()
 
@@ -50,16 +53,21 @@ struct AvatarPickerView: View {
             .onChange(of: selectedItem) { _, newItem in
                 Task { await load(newItem) }
             }
+            .sheet(isPresented: $showCamera) {
+                CameraImagePicker { image in
+                    if let image {
+                        previewImage = AvatarPickerView.squareCropAndResize(image, target: 512)
+                        error = nil
+                    }
+                }
+                .ignoresSafeArea()
+            }
         }
         .preferredColorScheme(.dark)
     }
 
     @ViewBuilder
     private var content: some View {
-        // Capture into a local Sendable Bool — PhotosPicker's label
-        // closure isn't main-actor-isolated under Swift 6 strict
-        // concurrency, so direct access to `previewImage` (an
-        // @State var) from inside the label crosses an actor boundary.
         let hasPreview = previewImage != nil
 
         VStack(spacing: FTSpace.xl) {
@@ -83,24 +91,27 @@ struct AvatarPickerView: View {
             )
             .shadow(color: FTColor.goldGlow.opacity(0.5), radius: 24, x: 0, y: 0)
 
-            PhotosPicker(
-                selection: $selectedItem,
-                matching: .images,
-                photoLibrary: .shared()
-            ) {
-                HStack(spacing: 8) {
-                    Image(systemName: "photo.on.rectangle.angled")
-                    Text(hasPreview ? "Choose another" : "Choose a photo")
-                        .font(FTType.body(15, weight: .medium))
+            VStack(spacing: FTSpace.sm) {
+                PhotosPicker(
+                    selection: $selectedItem,
+                    matching: .images,
+                    photoLibrary: .shared()
+                ) {
+                    sourceLabel(
+                        icon: "photo.on.rectangle.angled",
+                        text: hasPreview ? "Choose another" : "Choose a photo"
+                    )
                 }
-                .foregroundStyle(FTColor.gold)
-                .padding(.horizontal, FTSpace.lg)
-                .padding(.vertical, FTSpace.md)
-                .background(FTColor.surface)
-                .clipShape(Capsule())
-                .overlay(
-                    Capsule().stroke(FTColor.gold.opacity(0.4), lineWidth: 0.5)
-                )
+
+                if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                    Button {
+                        HapticsService.shared.tap()
+                        showCamera = true
+                    } label: {
+                        sourceLabel(icon: "camera.fill", text: "Take a photo")
+                    }
+                    .buttonStyle(.plain)
+                }
             }
 
             Text("We'll crop it to a circle and store a 512px copy. Replaceable any time.")
@@ -121,6 +132,21 @@ struct AvatarPickerView: View {
         }
         .padding(.top, FTSpace.xxl)
         .padding(.horizontal, FTSpace.xl)
+    }
+
+    private func sourceLabel(icon: String, text: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+            Text(text).font(FTType.body(15, weight: .medium))
+        }
+        .foregroundStyle(FTColor.gold)
+        .padding(.horizontal, FTSpace.lg)
+        .padding(.vertical, FTSpace.md)
+        .background(FTColor.surface)
+        .clipShape(Capsule())
+        .overlay(
+            Capsule().stroke(FTColor.gold.opacity(0.4), lineWidth: 0.5)
+        )
     }
 
     // MARK: Actions
@@ -160,16 +186,13 @@ struct AvatarPickerView: View {
     }
 
     /// Center-crops the image to a square, then renders it at the
-    /// target size in points. Keeps orientation correct (some photos
-    /// arrive with an EXIF rotation that UIGraphicsImageRenderer
-    /// handles automatically).
+    /// target size in points.
     static func squareCropAndResize(_ image: UIImage, target: CGFloat) -> UIImage {
         let normalized = image.normalizedOrientation()
         let dim = min(normalized.size.width, normalized.size.height)
         let originX = (normalized.size.width - dim) / 2
         let originY = (normalized.size.height - dim) / 2
 
-        // Crop in image-space pixels via cgImage (which is in pixels).
         let scale = normalized.scale
         guard let cg = normalized.cgImage?.cropping(to: CGRect(
             x: originX * scale,
@@ -187,11 +210,49 @@ struct AvatarPickerView: View {
 }
 
 private extension UIImage {
-    /// Returns an image rendered with `.up` orientation by re-drawing
-    /// the bitmap. EXIF-rotated photos otherwise crop incorrectly.
     func normalizedOrientation() -> UIImage {
         if imageOrientation == .up { return self }
         let renderer = UIGraphicsImageRenderer(size: size)
         return renderer.image { _ in draw(at: .zero) }
+    }
+}
+
+// MARK: - Camera
+
+/// Wraps UIImagePickerController in camera mode for capturing a new
+/// photo. Requires NSCameraUsageDescription (already in project.yml).
+struct CameraImagePicker: UIViewControllerRepresentable {
+    let onCapture: (UIImage?) -> Void
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = .camera
+        picker.cameraDevice = .front
+        picker.allowsEditing = false
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_: UIImagePickerController, context _: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator(onCapture: onCapture) }
+
+    final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let onCapture: (UIImage?) -> Void
+        init(onCapture: @escaping (UIImage?) -> Void) { self.onCapture = onCapture }
+
+        func imagePickerController(
+            _ picker: UIImagePickerController,
+            didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
+        ) {
+            let image = info[.originalImage] as? UIImage
+            picker.dismiss(animated: true)
+            onCapture(image)
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            picker.dismiss(animated: true)
+            onCapture(nil)
+        }
     }
 }
