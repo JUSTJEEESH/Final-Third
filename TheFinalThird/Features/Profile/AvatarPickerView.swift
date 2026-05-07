@@ -56,6 +56,12 @@ struct AvatarPickerView: View {
 
     @ViewBuilder
     private var content: some View {
+        // Capture into a local Sendable Bool — PhotosPicker's label
+        // closure isn't main-actor-isolated under Swift 6 strict
+        // concurrency, so direct access to `previewImage` (an
+        // @State var) from inside the label crosses an actor boundary.
+        let hasPreview = previewImage != nil
+
         VStack(spacing: FTSpace.xl) {
             // Preview circle with gold ring
             ZStack {
@@ -84,7 +90,7 @@ struct AvatarPickerView: View {
             ) {
                 HStack(spacing: 8) {
                     Image(systemName: "photo.on.rectangle.angled")
-                    Text(previewImage == nil ? "Choose a photo" : "Choose another")
+                    Text(hasPreview ? "Choose another" : "Choose a photo")
                         .font(FTType.body(15, weight: .medium))
                 }
                 .foregroundStyle(FTColor.gold)
