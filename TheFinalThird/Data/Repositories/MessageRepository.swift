@@ -7,6 +7,11 @@ protocol MessageRepository: Sendable {
     func edit(messageID: UUID, body: String) async throws
     func delete(messageID: UUID) async throws
     func toggleReaction(messageID: UUID, reaction: MessageReaction.Reaction, on: Bool) async throws
+    /// Posts an arrival / departure / move event into a room's chat
+    /// stream. Routed through the `post_system_message` SECURITY
+    /// DEFINER RPC — clients can't insert these directly because the
+    /// `messages_insert_member` policy gates on `kind = 'user'`.
+    func postSystem(roomID: UUID, kind: Message.Kind, payload: SystemPayload) async throws
 }
 
 struct LiveMessageRepository: MessageRepository {
@@ -72,5 +77,18 @@ struct LiveMessageRepository: MessageRepository {
                 .eq("reaction", value: reaction.rawValue)
                 .execute()
         }
+    }
+
+    func postSystem(roomID: UUID, kind: Message.Kind, payload: SystemPayload) async throws {
+        guard kind != .user else { return }   // direct path only for system events
+        struct Args: Encodable {
+            let p_room_id: UUID
+            let p_kind: String
+            let p_payload: SystemPayload
+        }
+        try await client
+            .rpc("post_system_message",
+                 params: Args(p_room_id: roomID, p_kind: kind.rawValue, p_payload: payload))
+            .execute()
     }
 }

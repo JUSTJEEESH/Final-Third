@@ -96,6 +96,8 @@ extension DTO.Message {
             editedAt: edited_at,
             deletedAt: deleted_at,
             createdAt: created_at,
+            kind: kind.flatMap(Message.Kind.init(rawValue:)) ?? .user,
+            payload: payload,
             pendingState: .synced
         )
     }

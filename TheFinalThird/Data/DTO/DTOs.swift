@@ -79,6 +79,8 @@ extension DTO {
         let edited_at: Date?
         let deleted_at: Date?
         let created_at: Date
+        let kind: String?
+        let payload: SystemPayload?
     }
 
     struct MessageInsert: Codable, Sendable {

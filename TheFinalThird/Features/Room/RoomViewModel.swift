@@ -84,6 +84,27 @@ final class RoomViewModel {
         analytics.track(.roomLeft(roomID: roomID))
     }
 
+    // MARK: Refresh
+
+    /// Pull-to-refresh-style refetch of the latest page of messages.
+    /// Used to surface freshly-posted system events (arrival /
+    /// departure / move) until the realtime stream is wired up. Cheap
+    /// because the page is capped at 50 rows.
+    func refreshMessages() async {
+        guard let fresh = try? await messagesRepo.page(roomID: roomID, before: nil, limit: 50) else { return }
+        // Merge — keep any pending local sends that haven't synced yet.
+        let pendingLocal = messages.filter {
+            if case .pending = $0.pendingState { return true }
+            if case .failed = $0.pendingState { return true }
+            return false
+        }
+        var merged = fresh
+        for p in pendingLocal where !merged.contains(where: { $0.id == p.id }) {
+            merged.append(p)
+        }
+        messages = merged
+    }
+
     // MARK: Smokers
 
     /// One-shot refresh of who's currently lit up in this room. The

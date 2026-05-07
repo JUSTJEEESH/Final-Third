@@ -670,6 +670,51 @@ The two halves finally meet. You can light up *from* a room (Path B), and rooms 
 
 ---
 
+## 2026-05-07 — Rooms × Sessions, Step 5: System events
+
+The room finally reacts. Light up in a room and the chat gets a quiet gold-marked line: *"Marcus has lit up — Padrón 1964 · Old Fashioned"*. End the session: *"Marcus stepped out · 47 min"*. The ritual signals to the people you're sitting with.
+
+**What landed**
+
+- Domain `Message` gains:
+  - `kind: Kind` (`.user` | `.arrival` | `.departure` | `.move`) — defaults to `.user` so existing rows stay unchanged.
+  - `payload: SystemPayload?` — typed metadata struct with `cigar_brand`, `cigar_line`, `drink_name`, `duration_minutes`, `rating`, `from_room_name`, `to_room_name`, plus snapshotted `display_name` / `avatar_url` so events render correctly even if the actor later changes their profile.
+  - `SystemPayload`'s CodingKeys map snake_case JSONB on the wire to camelCase in Swift.
+- DTO + Mapper carry kind + payload through.
+
+- `MessageRepository.postSystem(roomID:kind:payload:)` calls the `post_system_message` SECURITY DEFINER RPC from migration 0010. Direct table writes for system kinds are blocked by RLS — only this RPC can post them.
+
+- `SessionViewModel`:
+  - Now takes `MessageRepository` and `ProfileRepository` (defaulted) and an analytics arg in the middle.
+  - `startSession()` — after the row inserts, calls `postArrivalIfNeeded()`. Suppressed for solo sessions and ghost sessions (privacy non-negotiable).
+  - `endSession()` — after `sessions.finish` returns the duration, calls `postDepartureIfNeeded()`. Same gates.
+  - `profileSnapshot()` — fetches the actor's display name + avatar URL once at post time so the row renders correctly forever.
+
+- `RoomView.MessageRow` switches on `kind`:
+  - `.user` → today's render.
+  - `.arrival` / `.departure` / `.move` → new `SystemMessageRow` — flame / moon / arrow glyph in gold, single line of text, monospace timestamp. Background animates a one-shot ember bloom (gold → ember → fade) over ~1.5s when the row first appears so freshly-arrived events feel lit-from-within.
+  - Departure rating shows only when ≥4 (the implicit endorsement). Step 7 will gate the rating display to Patron-only on the server side too.
+
+- `RoomViewModel.refreshMessages()` (new) — pull-to-refresh-style refetch that preserves locally-pending sends. Surfaces system events without the realtime stream (still stubbed pending SDK pin, per existing open-items note).
+
+- `RoomView` watches `container.session.isFlowPresented` and `container.session.current?.session?.id`. When either changes (cover dismisses, session ends, session starts in this room) the room refetches messages + smokers — so your own arrival / departure shows up immediately when you minimize back into the room.
+
+- `StubMessageRepo` test mock updated.
+
+**Why this matters**
+
+- Rooms now feel reactive. The ceremony has consequences: people *see* you sit down and *see* you leave. That's the social temperature lift the whole architecture has been building toward.
+- The schema + RPC layer keeps clients honest — nobody can spoof "X has lit up" because the insert policy gates on `kind = 'user'`.
+- Snapshotted display name + avatar means event rows are immutable history, not stale lookups.
+
+**Visible to user**
+
+- Light up *from* a room → minimize → arrival event in chat with cigar + drink + ember bloom.
+- End the session → departure event in the same room with duration.
+- Solo sessions never post events. Ghost sessions never post events.
+
+---
+
 ## Open items (final polish)
 
 - Drop in licensed audio assets per the spec above; verify ambient loops are seamless across AirPods route changes.

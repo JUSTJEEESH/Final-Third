@@ -59,6 +59,26 @@ struct RoomView: View {
                 await vm?.enter(asGhost: asGhost)
             }
         }
+        // When the session cover dismisses (minimize / end / Path B
+        // ceremony-complete) refetch messages + smokers so a freshly
+        // posted arrival or departure system event shows up without
+        // a manual reload. One cheap query per cover transition —
+        // worth it until realtime is wired in.
+        .onChange(of: container.session.isFlowPresented) { _, presented in
+            guard !presented else { return }
+            Task {
+                await vm?.refreshMessages()
+                await vm?.refreshSmokers()
+            }
+        }
+        // Also catch end-of-flow (current cleared) so a departure
+        // event lands in chat after the summary closes.
+        .onChange(of: container.session.current?.session?.id) { _, _ in
+            Task {
+                await vm?.refreshMessages()
+                await vm?.refreshSmokers()
+            }
+        }
         .sheet(isPresented: $showAmbientPicker) {
             if let vm { AmbientPickerSheet(vm: vm) }
         }
@@ -384,6 +404,13 @@ private struct MessageRow: View {
     let message: Message
 
     var body: some View {
+        switch message.kind {
+        case .user: userRow
+        case .arrival, .departure, .move: SystemMessageRow(message: message)
+        }
+    }
+
+    private var userRow: some View {
         HStack(alignment: .top, spacing: FTSpace.sm) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(message.body).font(FTType.body(15))
@@ -407,6 +434,101 @@ private struct MessageRow: View {
         case .pending: return 0.55
         case .failed: return 0.5
         }
+    }
+}
+
+/// System events (arrival / departure / move) render as a quiet
+/// gold-accented strip with an ember pulse on first appearance —
+/// exactly the moment we want the room to feel reactive without
+/// shouting.
+private struct SystemMessageRow: View {
+    let message: Message
+    @State private var bloom = 0.0
+
+    private var glyph: String {
+        switch message.kind {
+        case .arrival:   return "flame.fill"
+        case .departure: return "moon.stars.fill"
+        case .move:      return "arrow.right.circle.fill"
+        case .user:      return ""
+        }
+    }
+
+    private var line: String {
+        let name = message.payload?.displayName ?? "Someone"
+        switch message.kind {
+        case .arrival:
+            var s = "\(name) has lit up"
+            if let cigar = cigarStr { s += " — \(cigar)" }
+            if let drink = message.payload?.drinkName { s += " · \(drink)" }
+            return s
+        case .departure:
+            var s = "\(name) stepped out"
+            if let mins = message.payload?.durationMinutes { s += " · \(mins) min" }
+            if let r = message.payload?.rating, r >= 4 { s += " · ★ loved it" }
+            return s
+        case .move:
+            let from = message.payload?.fromRoomName ?? "another room"
+            return "\(name) moved over from \(from)"
+        case .user:
+            return ""
+        }
+    }
+
+    private var cigarStr: String? {
+        switch (message.payload?.cigarBrand, message.payload?.cigarLine) {
+        case let (b?, l?): return "\(b) \(l)"
+        case let (b?, nil): return b
+        case let (nil, l?): return l
+        default: return nil
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: FTSpace.sm) {
+            Image(systemName: glyph)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(FTColor.gold)
+            Text(line)
+                .font(FTType.caption(12, weight: .medium))
+                .foregroundStyle(FTColor.inkMuted)
+                .lineLimit(2)
+            Spacer(minLength: FTSpace.xs)
+            Text(message.createdAt, style: .time)
+                .font(FTType.caption(10))
+                .foregroundStyle(FTColor.inkFaint)
+        }
+        .padding(.horizontal, FTSpace.md)
+        .padding(.vertical, FTSpace.sm)
+        .background(
+            ZStack {
+                FTColor.surface.opacity(0.4)
+                // Ember bloom — fades in then out over the first
+                // ~1.5s so a freshly-arrived row feels lit-from-within.
+                LinearGradient(
+                    colors: [
+                        FTColor.gold.opacity(0.18 * bloom),
+                        FTColor.ember.opacity(0.06 * bloom),
+                        .clear,
+                    ],
+                    startPoint: .leading, endPoint: .trailing
+                )
+            }
+        )
+        .clipShape(RoundedRectangle(cornerRadius: FTRadius.md, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: FTRadius.md, style: .continuous)
+                .stroke(FTColor.gold.opacity(0.30 + 0.5 * bloom), lineWidth: 0.5)
+        )
+        .padding(.horizontal, FTSpace.xs)
+        .padding(.vertical, 2)
+        .onAppear {
+            // Bloom up, then settle. Single shot — repeated re-renders
+            // (e.g. realtime updates landing nearby) don't re-fire.
+            withAnimation(.easeOut(duration: 0.45)) { bloom = 1 }
+            withAnimation(.easeInOut(duration: 1.1).delay(0.45)) { bloom = 0 }
+        }
+        .accessibilityLabel(line)
     }
 }
 

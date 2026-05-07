@@ -44,19 +44,25 @@ final class SessionViewModel {
     private var roomID: UUID?
     private let isGhost: Bool
     private let sessions: SessionRepository
+    private let messages: MessageRepository
+    private let profiles: ProfileRepository
     private let analytics: AnalyticsService
     private var tickerTask: Task<Void, Never>?
 
     init(
         userID: UUID, room: Room?, isGhost: Bool,
+        analytics: AnalyticsService,
         sessions: SessionRepository = LiveSessionRepository(),
-        analytics: AnalyticsService
+        messages: MessageRepository = LiveMessageRepository(),
+        profiles: ProfileRepository = LiveProfileRepository()
     ) {
         self.userID = userID
         self.roomID = room?.id
         self.chosenRoom = room
         self.isGhost = isGhost
         self.sessions = sessions
+        self.messages = messages
+        self.profiles = profiles
         self.analytics = analytics
     }
 
@@ -119,6 +125,9 @@ final class SessionViewModel {
             analytics.track(.sessionStarted(cigarID: cigar?.id, drinkID: drink?.id))
             phase = .active
             startBurnTimer()
+            // Fire the arrival event so the room reacts in real time.
+            // Best-effort — a failed RPC shouldn't tank the burn.
+            await postArrivalIfNeeded()
         } catch {
             // surface in UI; for now keep it simple
         }
@@ -133,6 +142,9 @@ final class SessionViewModel {
         } catch {
             phase = .summary
         }
+        // Fire the departure event after we have the final duration.
+        // Rating is added in `saveSummary` if the user gave one.
+        await postDepartureIfNeeded(rating: nil)
     }
 
     func saveSummary() async {
@@ -153,6 +165,56 @@ final class SessionViewModel {
         } catch {
             phase = .finished
         }
+    }
+
+    // MARK: - System events
+
+    /// Post "X has lit up" into the chosen room. Suppressed for solo
+    /// (no roomID) and ghost (privacy guarantee). Snapshots the
+    /// user's display name + avatar so the row renders correctly even
+    /// if the profile changes later.
+    private func postArrivalIfNeeded() async {
+        guard let roomID, !isGhost else { return }
+        let snapshot = await profileSnapshot()
+        let payload = SystemPayload(
+            cigarBrand: cigar?.brand,
+            cigarLine: cigar?.line,
+            drinkName: drink?.name,
+            durationMinutes: nil,
+            rating: nil,
+            fromRoomName: nil,
+            toRoomName: nil,
+            displayName: snapshot.name,
+            avatarURL: snapshot.avatar
+        )
+        try? await messages.postSystem(roomID: roomID, kind: .arrival, payload: payload)
+    }
+
+    /// Post "X stepped out · 47 min" into the chosen room. Same gates
+    /// as arrival. Rating shows only when the actor is a Patron and
+    /// passed an `overall` rating ≥ 4 (the implicit endorsement).
+    private func postDepartureIfNeeded(rating: Int?) async {
+        guard let roomID, !isGhost else { return }
+        let snapshot = await profileSnapshot()
+        let payload = SystemPayload(
+            cigarBrand: cigar?.brand,
+            cigarLine: cigar?.line,
+            drinkName: drink?.name,
+            durationMinutes: session?.durationMinutes,
+            rating: rating,
+            fromRoomName: nil,
+            toRoomName: nil,
+            displayName: snapshot.name,
+            avatarURL: snapshot.avatar
+        )
+        try? await messages.postSystem(roomID: roomID, kind: .departure, payload: payload)
+    }
+
+    private func profileSnapshot() async -> (name: String, avatar: String?) {
+        if let p = try? await profiles.fetch(id: userID) {
+            return (p.displayName, p.avatarURL?.absoluteString)
+        }
+        return ("Someone", nil)
     }
 
     private func startBurnTimer() {

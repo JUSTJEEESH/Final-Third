@@ -91,6 +91,7 @@ private struct StubMessageRepo: MessageRepository, @unchecked Sendable {
     func edit(messageID: UUID, body: String) async throws {}
     func delete(messageID: UUID) async throws {}
     func toggleReaction(messageID: UUID, reaction: MessageReaction.Reaction, on: Bool) async throws {}
+    func postSystem(roomID: UUID, kind: Message.Kind, payload: SystemPayload) async throws {}
 }
 
 private struct StubRoomRepo: RoomRepository {
