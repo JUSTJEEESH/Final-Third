@@ -199,10 +199,12 @@ final class RoomViewModel {
     }
 
     private func startListening() {
-        streamTask = Task { [weak self, realtime, roomID] in
-            guard let self else { return }
-            for await event in await realtime.subscribe(roomID: roomID) {
-                self.apply(event)
+        // `subscribe(roomID:)` is nonisolated and returns the
+        // AsyncStream synchronously; the `for await` consumes it.
+        let stream = realtime.subscribe(roomID: roomID)
+        streamTask = Task { [weak self] in
+            for await event in stream {
+                self?.apply(event)
             }
         }
     }
